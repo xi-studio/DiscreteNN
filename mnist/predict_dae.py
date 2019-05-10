@@ -99,7 +99,7 @@ class VAE(nn.Module):
 
 
 model = VAE()
-model.load_state_dict(torch.load('checkpoints/mnist/dae_010.pt'))
+model.load_state_dict(torch.load('checkpoints/mnist/dae_100.pt'))
 model = model.to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
@@ -168,34 +168,38 @@ def test():
        
 
 
-def sample(tag):
-    #c = torch.load('./data/zmean/dis_c_%d.pt' % tag)
-
-    s = torch.rand(64, 10, 1) 
-    s = norm(s,dim=1)
-    s = s.to(device)
-    z = Discrete.apply(s).view(-1,10)
-    c = torch.zeros(64,10)
-    c[:,tag] = 1
+def sample():
+    #s = torch.rand(64, 10, 1) 
+    #s = norm(s,dim=1)
+    #s = s.to(device)
+    #z = Discrete.apply(s).view(-1,10)
+    c = torch.zeros(100,20)
+    
+    num = 0
+    for tag in range(10):
+        for i in range(10):
+            c[num,tag+10] = 1
+            c[num,i] = 1
+            num += 1
+            print(num)
+       
     c = c.to(device)
      
-    print(z.shape,c.shape)
+#    print(z.shape,c.shape)
 
-    z = torch.cat((z,c),dim=1)
+#    z = torch.cat((z,c),dim=1)
 
     #z = z.to(device)
     
     model.eval()
     test_loss = 0
 
-    x = model.decode(z)
+    x = model.decode(c)
     
     img = x.view(-1,1,28,28)
-    save_image(img.cpu(), 'results/dis_sample_%d.png' % tag, nrow=8)
+    save_image(img.cpu(), 'results/D100_sample.png',nrow=10)
 
 if __name__ == "__main__":
 #    test()
 #    mask()    
-    for i in range(10):
-#        test(i)
-        sample(i)
+     sample()

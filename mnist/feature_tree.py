@@ -45,7 +45,6 @@ def trans(x):
     return index * nonzero
 
 class Discrete(torch.autograd.Function):
-
   @staticmethod
   def forward(ctx, x):
     substitute = torch.zeros_like(x) 
@@ -62,6 +61,23 @@ class Discrete(torch.autograd.Function):
 
     return grad_output
 
+class GLU(nn.Module):
+    def __init__(self, c1, c2):
+        super(GLU, self).__init__()
+
+        self.s = nn.Linear(c1, c2)
+        self.g = nn.Linear(c1, c2)
+
+
+    def forward(self, x):
+
+        s = torch.sigmoid(self.s(x))
+        g = torch.relu(self.g(x))
+
+        output = s * g
+
+        return output
+
 class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
@@ -72,26 +88,44 @@ class VAE(nn.Module):
         self.fc3 = nn.Linear(20, 400)
         self.fc4 = nn.Linear(400, 784)
 
+        self.fc1 = GLU(784, 400)
+        self.fc2 = GLU(400, 30)
+
+        self.zfc1 = nn.Linear(30, 400) 
+        self.zfc2 = nn.Linear(30, 400) 
+        self.zfc3 = nn.Linear(30, 400) 
+
+        self.dfc1 = nn.Linear(400, 400)
+        self.dfc2 = nn.Linear(400, 400)
+        self.dfc3 = nn.Linear(400, 784)
+          
 
     def encode(self, x):
-        x = F.relu(self.fc1(x))
-        n = F.relu(self.fc21(x))
-        s = torch.sigmoid(self.fc22(x))
-        x = n * s
-        x = x.view(-1, 10, 1)
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = x.view(-1, 10, 3)
         x = norm(x, dim=1)
        
         return x 
 
-    def decode(self, z):
-        x = F.relu(self.fc3(z))
+    def decode(self, x, c):
+        z1 = x[:,:,0]
+        z2 = x[:,:,1]
+        z3 = x[:,:,2]
+
+        z_r_0 = F.
+        z_r_1 = F.relu(self.zfc1(z1))
+        z_r_2 = F.relu(self.zfc2(z2) + self.dfc1(z_r_1))
+        z_r_3 = F.relu(slef.zfc3(z3) + self.dfc2(z_r_2))
+       
+        x = torch.sigmoid(self.dfc3(z_r_3))
         
-        return torch.sigmoid(self.fc4(x))
+        return x
 
     def forward(self, x, c):
         z = self.encode(x.view(-1, 784))
         z_d = Discrete.apply(z) 
-        x = z_d.view(-1, 10)
+        x = z_d.view(-1, 30)
         x = torch.cat((x, c),dim=1)
         x = self.decode(x)
 
@@ -107,7 +141,6 @@ def loss_function(recon_x, x, z, z_d):
     BCE2 = torch.mean((z - z_d) ** 2)
 
     return BCE1, BCE2
-
 
 def train(epoch):
     model.train()
