@@ -31,7 +31,7 @@ kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 train_set = torch.load('data/train.pt')
 test_set = torch.load('data/test.pt')
 
-train_c_data = torch.zeros(60000,500)
+train_c_data = torch.zeros(60000,500,2)
 train_data = train_set[0].type(torch.FloatTensor)
 train_data = train_data/255.0
 
@@ -74,9 +74,8 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
 
         self.fc1 = nn.Linear(784, 400)
-        self.fc21 = nn.Linear(400, 10)
-        self.fc22 = nn.Linear(400, 10)
-
+        self.fc21 = nn.Linear(400, 2)
+        self.fc22 = nn.Linear(400, 2)
 
     def encode(self, x):
         x = F.relu(self.fc1(x))
@@ -96,11 +95,11 @@ class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
 
-        self.fc1 = nn.Linear(500, 400)
+        self.fc1 = nn.Linear(1000, 400)
         self.fc3 = nn.Linear(400, 784)
 
     def forward(self, x):
-        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc1(x.view(-1, 1000)))
         x = torch.sigmoid(self.fc3(x))
 
         return x 
@@ -110,8 +109,9 @@ class Decoder(nn.Module):
 def loss_function(recon_x, x, z, z_d):
     BCE1 = F.binary_cross_entropy(recon_x, x.view(-1, 784), reduction='sum')
     BCE2 = torch.mean((z - z_d) ** 2)
+    BCE3 = torch.mean((z**2 - 0.5) ** 2)
 
-    return BCE1, BCE2
+    return BCE1, BCE2+BCE3 * 1000
 
 def train(epoch, i, emodel, dmodel, optimizer_e, optimizer_d):
     emodel.train()
@@ -131,7 +131,7 @@ def train(epoch, i, emodel, dmodel, optimizer_e, optimizer_d):
         
         z = emodel(data)
         z_d = Discrete.apply(z) 
-        c[:,i * 10 : (i+1) * 10] = z_d 
+        c[:,i] = z_d 
         rx = dmodel(c)
 
         loss_r, loss_z = loss_function(rx, data, z, z_d.detach())
@@ -143,7 +143,7 @@ def train(epoch, i, emodel, dmodel, optimizer_e, optimizer_d):
         optimizer_d.step()
 
         if idx % args.log_interval == 0:
-            #print('==>loss_r:', loss_r.item(), '==>loss_z:', loss_z.item())
+            print('==>loss_r:', loss_r.item(), '==>loss_z:', loss_z.item())
             print('C: {} Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(i,
                 epoch, idx * len(data), 60000,
                 100. * idx / 60000,
@@ -152,8 +152,8 @@ def train(epoch, i, emodel, dmodel, optimizer_e, optimizer_d):
 #    if epoch % 10 == 0:
 #        torch.save(model.state_dict(),"checkpoints/mnist/un_class_10_%03d.pt" % epoch)
 
-    y = train_c_data[0].view(50,10)
-    print(y)
+    y = train_c_data[0]
+#    print(y)
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / 60000))
 
@@ -185,7 +185,6 @@ def test(epoch, i=1):
 def fill(i=1):
     emodel.eval()
 
-
     k = int(60000 / args.batch_size)
     for idx in range(k):
         index = train_index[idx * args.batch_size : (idx + 1) * args.batch_size]
@@ -196,7 +195,7 @@ def fill(i=1):
         
         z = emodel(data)
         z_d = Discrete.apply(z) 
-        c[:, 10 * i : 10 * (i+1)] = z_d
+        c[:, i] = z_d
         train_c_data[index] = c.detach().cpu()
 
 def sample(epoch, i=1):
@@ -213,13 +212,16 @@ def sample(epoch, i=1):
 
 
 if __name__ == "__main__":
-    for i in range(50):
+    for i in range(500):
         emodel = Encoder().to(device)
         dmodel = Decoder().to(device)
         optimizer_e = optim.Adam(emodel.parameters(), lr=1e-3)
         optimizer_d = optim.Adam(dmodel.parameters(), lr=1e-3)
         for epoch in range(1, args.epochs + 1):
             train(epoch, i, emodel, dmodel, optimizer_e, optimizer_d)
-        torch.save(dmodel.state_dict(),"checkpoints/mnist/tree_%03d.pt" % i)
+        torch.save(dmodel.state_dict(),"checkpoints/mnist/tree_2_500_%03d.pt" % i)
         fill(i)
-    torch.save(train_c_data, "checkpoints/mnist/c_data.pt")
+        zmean = train_c_data.sum(dim=0)
+        print("Zmean:", zmean[i])
+        save_image(zmean.cpu(),'results/tree_2_500_i_%d.png' % i)
+    torch.save(train_c_data.cpu(), "checkpoints/mnist/c_2_500_data.pt")
