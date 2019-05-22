@@ -52,24 +52,57 @@ class Discrete(torch.autograd.Function):
     index = x.argmax(dim=1)
     substitute.scatter_(1, index.unsqueeze(1), 1)
 
-    nonzero = x.sum(dim=1) > 0
-    nonzero = nonzero.unsqueeze(1)
-    nonzero = nonzero.type(torch.FloatTensor).to(device)
-    
-    return substitute * nonzero
+    return substitute 
 
   def backward(ctx, grad_output):
 
     return grad_output
+
+class Coder(nn.Module):
+    def __init__(self):
+        super(Coder, self).__init__()
+
+        self.fc1 = nn.Linear(784, 400)
+        self.fc21 = nn.Linear(400, 20)
+        self.fc22 = nn.Linear(400, 20)
+
+    def encode(self, x):
+        x = F.relu(self.fc1(x))
+        n = F.relu(self.fc21(x))
+        s = torch.sigmoid(self.fc22(x))
+        x = n * s
+        x = x.view(-1, 10, 1)
+        x = norm(x, dim=1)
+       
+        return x 
+
+    def forward(self, x, c):
+        z = self.encode(x.view(-1, 784))
+
+        return z 
+
+class Voder(nn.Module):
+    def __init__(self):
+        super(Voder, self).__init__()
+        self.fc3 = nn.Linear(20, 400)
+        self.fc4 = nn.Linear(400, 784)
+
+    def forward(self, z):
+        x = F.relu(self.fc3(z))
+        
+        x = torch.sigmoid(self.fc4(x))
+        
+        return x
+
 
 class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
 
         self.fc1 = nn.Linear(784, 400)
-        self.fc21 = nn.Linear(400, 1000)
-        self.fc22 = nn.Linear(400, 1000)
-        self.fc3 = nn.Linear(1010, 400)
+        self.fc21 = nn.Linear(400, 10)
+        self.fc22 = nn.Linear(400, 10)
+        self.fc3 = nn.Linear(20, 400)
         self.fc4 = nn.Linear(400, 784)
 
 
@@ -78,7 +111,7 @@ class VAE(nn.Module):
         n = F.relu(self.fc21(x))
         s = torch.sigmoid(self.fc22(x))
         x = n * s
-        x = x.view(-1, 2, 500)
+        x = x.view(-1, 10, 1)
         x = norm(x, dim=1)
        
         return x 
@@ -91,7 +124,7 @@ class VAE(nn.Module):
     def forward(self, x, c):
         z = self.encode(x.view(-1, 784))
         z_d = Discrete.apply(z) 
-        x = z_d.view(-1, 1000)
+        x = z_d.view(-1, 10)
         x = torch.cat((x, c),dim=1)
         x = self.decode(x)
 
@@ -105,16 +138,13 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 def loss_function(recon_x, x, z, z_d):
     BCE1 = F.binary_cross_entropy(recon_x, x.view(-1, 784), reduction='sum')
     BCE2 = torch.mean((z - z_d) ** 2)
-    BCE3 = torch.mean((z**2 - 0.5) ** 2)
 
-    return BCE1, BCE2 + BCE3 * 1000
+    return BCE1, BCE2
 
 
 def train(epoch):
     model.train()
     train_loss = 0
-    base = torch.zeros(2,500)
-    base = base.to(device)
     for batch_idx, (data, c) in enumerate(train_loader):
 
         c = c.unsqueeze(1)
@@ -125,9 +155,8 @@ def train(epoch):
         data = data.to(device)
         optimizer.zero_grad()
         rx, z, z_d = model(data, c_onehot)
-        base += z_d.sum(dim=0)
         loss_r, loss_z = loss_function(rx, data, z, z_d.detach())
-        loss = loss_r + loss_z 
+        loss = loss_r + loss_z*100 
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
@@ -141,7 +170,7 @@ def train(epoch):
     if epoch % 10 == 0:
         torch.save(model.state_dict(),"checkpoints/mnist/dae_%03d.pt" % epoch)
     
-    save_image(base.cpu(), 'results/2_500_mean_%03d.png' % epoch)
+    #save_image(base.cpu(), 'results/2_500_mean_%03d.png' % epoch)
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss / len(train_loader.dataset)))
