@@ -108,3 +108,7 @@ mnist/checkpoints/
 mnist/data/
 mnist/images/
 mnist/results/
+GAN/checkpoints/
+GAN/data/
+GAN/images/
+GAN/results/
