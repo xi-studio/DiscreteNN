@@ -100,9 +100,9 @@ class VAE(nn.Module):
         super(VAE, self).__init__()
 
         self.fc1 = nn.Linear(784, 400)
-        self.fc21 = nn.Linear(400, 200)
-        self.fc22 = nn.Linear(400, 200)
-        self.fc3 = nn.Linear(210, 400)
+        self.fc21 = nn.Linear(400, 500)
+        self.fc22 = nn.Linear(400, 500)
+        self.fc3 = nn.Linear(510, 400)
         self.fc4 = nn.Linear(400, 784)
 
 
@@ -111,7 +111,7 @@ class VAE(nn.Module):
         n = F.relu(self.fc21(x))
         s = torch.sigmoid(self.fc22(x))
         x = n * s
-        x = x.view(-1, 10, 20)
+        x = x.view(-1, 10, 50)
         x = norm(x, dim=1)
        
         return x 
@@ -124,7 +124,7 @@ class VAE(nn.Module):
     def forward(self, x, c):
         z = self.encode(x.view(-1, 784))
         z_d = Discrete.apply(z) 
-        x = z_d.view(-1, 200)
+        x = z_d.view(-1, 500)
         x = torch.cat((x, c),dim=1)
         x = self.decode(x)
 
@@ -136,7 +136,7 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 
 mse = nn.MSELoss(reduction='sum')
-target = torch.ones(args.batch_size, 20)
+target = torch.ones(args.batch_size, 50)
 target = target.to(device)
 
 def loss_function(recon_x, x, z, z_d):
@@ -165,7 +165,7 @@ def train(epoch):
         optimizer.zero_grad()
         rx, z, z_d = model(data, c_onehot)
         loss_r, loss_z, loss_c = loss_function(rx, data, z, z_d.detach())
-        loss = loss_r + loss_z + loss_c * 5 
+        loss = loss_r + loss_z + loss_c  
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
@@ -177,7 +177,7 @@ def train(epoch):
                 100. * batch_idx / len(train_loader),
                 loss.item() / len(data)))
 
-    if epoch % 50 == 0:
+    if epoch % 10 == 0:
         torch.save(model.state_dict(),"checkpoints/mnist/dae_%03d.pt" % epoch)
     
 
@@ -201,15 +201,15 @@ def test(epoch):
             test_loss += loss_r.item()
             if i == 0:
                 c1 = torch.zeros_like(c_onehot)
-                c1[:,6] = 1
-                x = z_d.view(-1, 200)
+                c1[:,5] = 1
+                x = z_d.view(-1, 500)
                 x = torch.cat((x, c1),dim=1)
                 x = model.decode(x)
                 n = min(data.size(0), 16)
                 img = torch.cat((rx[:64], x[:64]),dim=0)
                 img = img.view(128, 1, 28, 28)
                 save_image(img.cpu(),
-                         'images/8_sample_' + str(epoch) + '.png', nrow=64)
+                         'images/03_sample_' + str(epoch) + '.png', nrow=64)
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
