@@ -165,7 +165,7 @@ def train(epoch):
         optimizer.zero_grad()
         rx, z, z_d = model(data, c_onehot)
         loss_r, loss_z, loss_c = loss_function(rx, data, z, z_d.detach())
-        loss = loss_r + loss_z + loss_c  
+        loss = loss_r + loss_z + loss_c * 5 
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
@@ -197,7 +197,7 @@ def test(epoch):
             data = data.to(device)
             rx, z, z_d = model(data, c_onehot)
             loss_r, loss_z, loss_c= loss_function(rx, data, z, z_d.detach())
-            loss = loss_r + loss_z + loss_c  
+            loss = loss_r + loss_z + loss_c * 5 
             test_loss += loss_r.item()
             if i == 0:
                 c1 = torch.zeros_like(c_onehot)

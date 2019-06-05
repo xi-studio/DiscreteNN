@@ -36,13 +36,7 @@ test_loader = torch.utils.data.DataLoader(
     batch_size=args.batch_size, shuffle=False, **kwargs)
 
 norm = torch.nn.functional.normalize
-
-def trans(x):
-    index = x.argmax(dim=1) + 1
-    nonzero = x.sum(dim=1) > 0
-    index = index.type(torch.FloatTensor).to(device)
-    nonzero = nonzero.type(torch.FloatTensor).to(device)
-    return index * nonzero
+soft = nn.Softmax(dim=1)
 
 class Discrete(torch.autograd.Function):
 
@@ -58,51 +52,15 @@ class Discrete(torch.autograd.Function):
 
     return grad_output
 
-class Coder(nn.Module):
-    def __init__(self):
-        super(Coder, self).__init__()
-
-        self.fc1 = nn.Linear(784, 400)
-        self.fc21 = nn.Linear(400, 20)
-        self.fc22 = nn.Linear(400, 20)
-
-    def encode(self, x):
-        x = F.relu(self.fc1(x))
-        n = F.relu(self.fc21(x))
-        s = torch.sigmoid(self.fc22(x))
-        x = n * s
-        x = x.view(-1, 10, 1)
-        x = norm(x, dim=1)
-       
-        return x 
-
-    def forward(self, x, c):
-        z = self.encode(x.view(-1, 784))
-
-        return z 
-
-class Voder(nn.Module):
-    def __init__(self):
-        super(Voder, self).__init__()
-        self.fc3 = nn.Linear(20, 400)
-        self.fc4 = nn.Linear(400, 784)
-
-    def forward(self, z):
-        x = F.relu(self.fc3(z))
-        
-        x = torch.sigmoid(self.fc4(x))
-        
-        return x
-
 
 class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
 
         self.fc1 = nn.Linear(784, 400)
-        self.fc21 = nn.Linear(400, 20)
-        self.fc22 = nn.Linear(400, 20)
-        self.fc3 = nn.Linear(30, 400)
+        self.fc21 = nn.Linear(400, 5)
+        self.fc22 = nn.Linear(400, 5)
+        self.fc3 = nn.Linear(15, 400)
         self.fc4 = nn.Linear(400, 784)
 
 
@@ -111,10 +69,12 @@ class VAE(nn.Module):
         n = F.relu(self.fc21(x))
         s = torch.sigmoid(self.fc22(x))
         x = n * s
-        x = x.view(-1, 10, 2)
-        x = norm(x, dim=1)
+        x = x.view(-1, 5, 1)
+        z = norm(x, dim=1)
+        z_d = z
+        #z_d = soft(z)
        
-        return x 
+        return z, z_d 
 
     def decode(self, z):
         x = F.relu(self.fc3(z))
@@ -122,9 +82,8 @@ class VAE(nn.Module):
         return torch.sigmoid(self.fc4(x))
 
     def forward(self, x, c):
-        z = self.encode(x.view(-1, 784))
-        z_d = Discrete.apply(z) 
-        x = z_d.view(-1, 20)
+        z, z_d = self.encode(x.view(-1, 784))
+        x = z_d.view(-1, 5)
         x = torch.cat((x, c),dim=1)
         x = self.decode(x)
 
@@ -136,12 +95,11 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 
 mse = nn.MSELoss(reduction='sum')
-target = torch.ones(args.batch_size, 20)
-target = target.to(device)
 
 def loss_function(recon_x, x, z, z_d):
     BCE1 = F.binary_cross_entropy(recon_x, x.view(-1, 784), reduction='sum')
-    BCE2 = mse(z, z_d)
+    z_t = Discrete.apply(z_d)
+    BCE2 = mse(z_d, z_t.detach())
 
     zf = z.flip([0])
     y = torch.sum((z*zf),dim=1)
@@ -165,7 +123,7 @@ def train(epoch):
         optimizer.zero_grad()
         rx, z, z_d = model(data, c_onehot)
         loss_r, loss_z, loss_c = loss_function(rx, data, z, z_d.detach())
-        loss = loss_r + loss_z + loss_c * 5 
+        loss = loss_r  #+ loss_c
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
@@ -178,7 +136,7 @@ def train(epoch):
                 loss.item() / len(data)))
 
     if epoch % 50 == 0:
-        torch.save(model.state_dict(),"checkpoints/mnist/dae_%03d.pt" % epoch)
+        torch.save(model.state_dict(),"checkpoints/mnist/soft_%03d.pt" % epoch)
     
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
@@ -202,14 +160,14 @@ def test(epoch):
             if i == 0:
                 c1 = torch.zeros_like(c_onehot)
                 c1[:,6] = 1
-                x = z_d.view(-1, 20)
+                x = z_d.view(-1, 5)
                 x = torch.cat((x, c1),dim=1)
                 x = model.decode(x)
                 n = min(data.size(0), 16)
-                img = torch.cat((rx[:64], x[:64]),dim=0)
-                img = img.view(128, 1, 28, 28)
+                img = torch.cat((data[:64].view(-1,784), rx[:64], x[:64]),dim=0)
+                img = img.view(64*3, 1, 28, 28)
                 save_image(img.cpu(),
-                         'images/dis_sample_' + str(epoch) + '.png', nrow=64)
+                         'images/soft_11_sample_' + str(epoch) + '.png', nrow=64)
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
