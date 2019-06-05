@@ -112,3 +112,7 @@ GAN/checkpoints/
 GAN/data/
 GAN/images/
 GAN/results/
+voice/checkpoints/
+voice/data/
+voice/images/
+voice/results/
