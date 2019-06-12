@@ -48,36 +48,29 @@ class VAE(nn.Module):
         self.fc3 = nn.Linear(13, 400)
         self.fc4 = nn.Linear(400, 784)
 
-        self.share = nn.Sequential(
-            nn.Linear(784, 400),
-            nn.ReLU(),
-        )
 
-    def encode(self, x, B):
+    def encode(self, x):
         x = F.relu(self.fc1(x))
-        x = x * B
 
         n = F.relu(self.fc21(x))
         s = torch.sigmoid(self.fc22(x))
         x = n * s
+        x = x.view(-1, 3, 1)
         z = norm(x, dim=1)
+        z = z.view(-1, 3)
        
         return z
 
-    def decode(self, z, B):
+    def decode(self, z):
         x = F.relu(self.fc3(z))
-        x = x + B
 
         return torch.sigmoid(self.fc4(x))
 
     def forward(self, x, c):
         x = x.view(-1, 784)
-        s = torch.ones_like(x)
-        B = self.share(s)
-
-        z = self.encode(x, B)
+        z = self.encode(x)
         x = torch.cat((z, c),dim=1)
-        x = self.decode(x, B)
+        x = self.decode(x)
 
         return x, z
 
@@ -141,15 +134,14 @@ def test(epoch):
                 c1 = torch.zeros_like(c_onehot)
                 c1[:,6] = 1
                 x = torch.cat((z, c1),dim=1)
+                print(z[0])
                
-                s = torch.ones_like(data.view(-1, 784)) 
-                B = model.share(s)
-                x = model.decode(x, B)
+                x = model.decode(x)
                 n = min(data.size(0), 16)
                 img = torch.cat((data[:64].view(-1,784), rx[:64], x[:64]),dim=0)
                 img = img.view(64*3, 1, 28, 28)
                 save_image(img.cpu(),
-                         'images/share_02_sample_' + str(epoch) + '.png', nrow=64)
+                         'images/vs_share_04_sample_' + str(epoch) + '.png', nrow=64)
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))

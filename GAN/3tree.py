@@ -36,48 +36,43 @@ test_loader = torch.utils.data.DataLoader(
     batch_size=args.batch_size, shuffle=False, **kwargs)
 
 norm = torch.nn.functional.normalize
-soft = nn.Softmax(dim=1)
 
 class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
 
         self.fc1 = nn.Linear(784, 400)
-        self.fc21 = nn.Linear(400, 3)
-        self.fc22 = nn.Linear(400, 3)
-        self.fc3 = nn.Linear(13, 400)
+        self.fc21 = nn.Linear(400, 9)
+        self.fc22 = nn.Linear(400, 9)
+        self.fc3 = nn.Linear(19, 400)
         self.fc4 = nn.Linear(400, 784)
 
-        self.share = nn.Sequential(
-            nn.Linear(784, 400),
-            nn.ReLU(),
-        )
-
-    def encode(self, x, B):
+    def encode(self, x):
         x = F.relu(self.fc1(x))
-        x = x * B
-
         n = F.relu(self.fc21(x))
         s = torch.sigmoid(self.fc22(x))
         x = n * s
+        x = x.view(-1, 3, 3)
         z = norm(x, dim=1)
+        z = z.view(-1, 9)
        
         return z
 
-    def decode(self, z, B):
+    def decode(self, z):
         x = F.relu(self.fc3(z))
-        x = x + B
 
         return torch.sigmoid(self.fc4(x))
 
-    def forward(self, x, c):
+    def forward(self, x, c, i):
         x = x.view(-1, 784)
-        s = torch.ones_like(x)
-        B = self.share(s)
-
-        z = self.encode(x, B)
-        x = torch.cat((z, c),dim=1)
-        x = self.decode(x, B)
+        z = self.encode(x)
+        mask = torch.zeros_like(z)
+        mask[:, :3*i] = 1
+        x = z * mask
+       
+        x = torch.cat((x, c),dim=1)
+        
+        x = self.decode(x)
 
         return x, z
 
@@ -105,11 +100,14 @@ def train(epoch):
 
         data = data.to(device)
         optimizer.zero_grad()
-        rx, z = model(data, c_onehot)
+        
+        i = epoch % 3 + 1
+        rx, z = model(data, c_onehot, i)
         loss = loss_function(rx, data)
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
+
         if batch_idx % args.log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
@@ -121,7 +119,7 @@ def train(epoch):
     
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
-          epoch, train_loss / len(train_loader.dataset)))
+          epoch, train_loss /len(train_loader.dataset)))
 
 
 def test(epoch):
@@ -134,22 +132,21 @@ def test(epoch):
             c_onehot.scatter_(1, c, 1)
             c_onehot = c_onehot.to(device)
             data = data.to(device)
-            rx, z = model(data, c_onehot)
+            rx, z = model(data, c_onehot, 3)
             loss = loss_function(rx, data)
             test_loss += loss.item()
             if i == 0:
                 c1 = torch.zeros_like(c_onehot)
                 c1[:,6] = 1
                 x = torch.cat((z, c1),dim=1)
+                print(z[0])
                
-                s = torch.ones_like(data.view(-1, 784)) 
-                B = model.share(s)
-                x = model.decode(x, B)
+                x = model.decode(x)
                 n = min(data.size(0), 16)
                 img = torch.cat((data[:64].view(-1,784), rx[:64], x[:64]),dim=0)
                 img = img.view(64*3, 1, 28, 28)
                 save_image(img.cpu(),
-                         'images/share_02_sample_' + str(epoch) + '.png', nrow=64)
+                         'images/tree_02_sample_' + str(epoch) + '.png', nrow=64)
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
