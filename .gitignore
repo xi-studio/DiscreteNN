@@ -116,3 +116,7 @@ voice/checkpoints/
 voice/data/
 voice/images/
 voice/results/
+tree/checkpoints/
+tree/data/
+tree/images/
+tree/results/
