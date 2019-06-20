@@ -64,12 +64,16 @@ class Decoder(nn.Module):
     def __init__(self, c):
         super(Decoder, self).__init__()
 
-        self.fc3 = nn.Linear(c, 400)
-        self.fc4 = nn.Linear(400, 784)
+        self.fc1 = nn.Linear(c, 400)
+        self.fc2 = nn.Linear(c, 400)
+       
+        self.fc3 = nn.Linear(400, 784)
 
     def forward(self, z):
-        x = F.relu(self.fc3(z))
-        x = torch.sigmoid(self.fc4(x))
+        s = torch.sigmoid(self.fc1(z))
+        n = F.relu(self.fc2(z))
+        x = s * n
+        x = torch.sigmoid(self.fc3(x))
        
         return x 
 
@@ -178,7 +182,7 @@ def test(epoch):
                 img = img.view(-1, 1, 28, 28)
                 print(img.shape)
                 save_image(img.cpu(),
-                         'images/tree_sample_' + str(epoch) + '.png', nrow=64)
+                         'images/tree_02_sample_' + str(epoch) + '.png', nrow=64)
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))

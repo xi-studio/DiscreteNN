@@ -37,77 +37,119 @@ test_loader = torch.utils.data.DataLoader(
 
 norm = torch.nn.functional.normalize
 
+class GLU(nn.Module):
+    def __init__(self, c1, c2):
+        super(GLU, self).__init__()
+        self.s = nn.Linear(c1, c2)
+        self.g = nn.Linear(c1, c2)
+
+    def forward(self, x):
+        s = torch.sigmoid(self.s(x))
+        g = torch.relu(self.g(x))
+        output = s * g
+
+        return output 
+
 class Encoder(nn.Module):
     def __init__(self):
         super(Encoder, self).__init__()
 
-        self.fc1 = nn.Linear(784, 400)
-        self.fc21 = nn.Linear(400, 3)
-        self.fc22 = nn.Linear(400, 3)
-
-    def encode(self, x):
-        x = F.relu(self.fc1(x))
-        n = F.relu(self.fc21(x))
-        s = torch.sigmoid(self.fc22(x))
-        x = n * s
-        z = norm(x, dim=1)
-        
-        return z
+        self.fc1 = GLU(784, 400)
+        self.fc2 = GLU(400, 50)
 
     def forward(self, x):
-        x = x.view(-1, 784)
-        z = self.encode(x)
-       
-        return z
+
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = norm(x, dim=1)
+
+        return x 
 
 class Decoder(nn.Module):
-    def __init__(self, c):
+    def __init__(self):
         super(Decoder, self).__init__()
 
-        self.fc3 = nn.Linear(c, 400)
-        self.fc4 = nn.Linear(400, 784)
+        self.fc1 = GLU(50, 400)
+        self.fc2 = nn.Linear(400, 784)
 
-    def forward(self, z):
-        x = F.relu(self.fc3(z))
-        x = torch.sigmoid(self.fc4(x))
-       
+    def forward(self, x):
+
+        x = self.fc1(x)
+        x = torch.sigmoid(self.fc2(x))
+
+        return x 
+
+class Transform(nn.Module):
+    def __init__(self, c1, c2):
+        super(Transform, self).__init__()
+
+        self.fc1 = GLU(c1, c1)
+        self.fc2 = GLU(c1, c1)
+        self.fc3 = GLU(c1, c2)
+
+    def forward(self, x):
+
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = self.fc3(x)
+        x = norm(x, dim=1)
+
+        return x 
+
+class Key(nn.Module):
+    def __init__(self, c1, c2):
+        super(Key, self).__init__()
+
+        self.fc1 = GLU(c1, c1)
+        self.fc2 = GLU(c1, c1)
+        self.fc3 = GLU(c1, c2)
+
+    def forward(self, x):
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = self.fc3(x)
+        x = norm(x, dim=1)
+
         return x 
 
 class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
+        
+        self.e = Encoder()
+        self.d = Decoder()
+        self.t = Transform(60, 50)
+        self.k = Key(20, 50)
 
-        self.e1 = Encoder()
-        self.e2 = Encoder()
-        self.e3 = Encoder()
-        self.d1 = Decoder(13)
-        self.d2 = Decoder(16)
-        self.d3 = Decoder(19)
 
     def forward(self, x, c):
-        z1 = self.e1(x)
-        z2 = self.e2(x)
-        z3 = self.e3(x)
+        x = x.view(-1, 784)
 
-        c1 = torch.cat((c, z1), dim=1)
-        c2 = torch.cat((c, z1.detach(), z2), dim=1)
-        c3 = torch.cat((c, z1.detach(), z2.detach(), z3), dim=1)
+        z = self.e(x)
+        z_t = torch.cat((z, c), dim=1)
+        z_t = self.t(z_t)
+         
+        x = self.d(z_t)
 
-        x1 = self.d1(c1)
-        x2 = self.d2(c2)
-        x3 = self.d3(c3)
+        v = torch.ones_like(c)
+        v = torch.cat((v, c), dim=1)
+        z_k = self.k(v)
+        
+        similarity = (z_t * z_k).sum(dim=1)
 
-        return x1, x2, x3, z1, z2, z3
+        return x, z, similarity
 
 
 model = VAE().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 
-def loss_function(recon_x, x):
+def loss_function(recon_x, x, s):
+    target = torch.ones_like(s)
     BCE = F.binary_cross_entropy(recon_x, x.view(-1, 784), reduction='sum')
+    BCE1 = F.binary_cross_entropy(s, target, reduction='sum')
 
-    return BCE
+    return BCE, BCE1
 
 
 def train(epoch):
@@ -123,22 +165,20 @@ def train(epoch):
         data = data.to(device)
         optimizer.zero_grad()
         
-        i = epoch % 3 + 1
-        x1, x2, x3, z1, z2, z3 = model(data, c_onehot) 
-        loss1 = loss_function(x1, data)
-        loss2 = loss_function(x2, data)
-        loss3 = loss_function(x3, data)
-        loss1.backward()
-        loss2.backward()
-        loss3.backward()
-        train_loss += loss1.item()
+        rx, z, s= model(data, c_onehot)
+        loss, similarity = loss_function(rx, data, s)
+        loss_a = loss + similarity
+        loss_a.backward()
+        train_loss += loss.item()
         optimizer.step()
 
         if batch_idx % args.log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss1: {:.6f}, Loss2: {:.6f}, Loss3: {:.6f}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader),
-                loss1.item() / len(data), loss2.item() / len(data),loss3.item() / len(data)))
+                loss.item() / len(data), 
+                similarity.item() / len(data), 
+                ))
 
     if epoch % 50 == 0:
         torch.save(model.state_dict(),"checkpoints/mnist/share_%03d.pt" % epoch)
@@ -151,6 +191,7 @@ def train(epoch):
 def test(epoch):
     model.eval()
     test_loss = 0
+    test_similarity = 0
     with torch.no_grad():
         for i, (data, c) in enumerate(test_loader):
             c = c.unsqueeze(1)
@@ -158,30 +199,25 @@ def test(epoch):
             c_onehot.scatter_(1, c, 1)
             c_onehot = c_onehot.to(device)
             data = data.to(device)
-            x1, x2, x3, z1, z2, z3 = model(data, c_onehot)
-            loss = loss_function(x3, data)
+            rx, z, s = model(data, c_onehot)
+            loss, similarity = loss_function(rx, data, s)
             test_loss += loss.item()
+            test_similarity += similarity.item()
             if i == 0:
                 c1 = torch.zeros_like(c_onehot)
                 c1[:,6] = 1
-                rz1 = torch.cat((c1, z1),dim=1)
-                rz2 = torch.cat((c1, z1, z2),dim=1)
-                rz3 = torch.cat((c1, z1, z2, z3),dim=1)
-                
-                rx1 = model.d1(rz1)
-                rx2 = model.d2(rz2)
-                rx3 = model.d3(rz3)
-            
+                z_t = torch.cat((z, c1), dim=1)
+                z_t = model.t(z_t)
+                x = model.d(z_t)
+
                 n = min(data.size(0), 16)
-                data = data.view(-1, 784)
-                img = torch.cat((data[:64], x1[:64], x2[:64], x3[:64], rx1[:64], rx2[:64], rx3[:64]),dim=0)
-                img = img.view(-1, 1, 28, 28)
-                print(img.shape)
+                img = torch.cat((data[:64].view(-1,784), rx[:64], x[:64]),dim=0)
+                img = img.view(64*3, 1, 28, 28)
                 save_image(img.cpu(),
-                         'images/tree_sample_' + str(epoch) + '.png', nrow=64)
+                         'images/z_' + str(epoch) + '.png', nrow=64)
 
     test_loss /= len(test_loader.dataset)
-    print('====> Test set loss: {:.4f}'.format(test_loss))
+    print('====> Test set loss: {:.4f}  {:.4f}'.format(test_loss, test_similarity))
 
 if __name__ == "__main__":
     for epoch in range(1, args.epochs + 1):

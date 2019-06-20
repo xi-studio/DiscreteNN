@@ -42,9 +42,9 @@ class VAE(nn.Module):
         super(VAE, self).__init__()
 
         self.fc1 = nn.Linear(784, 400)
-        self.fc21 = nn.Linear(400, 9)
-        self.fc22 = nn.Linear(400, 9)
-        self.fc3 = nn.Linear(19, 400)
+        self.fc21 = nn.Linear(400, 3)
+        self.fc22 = nn.Linear(400, 3)
+        self.fc3 = nn.Linear(13, 400)
         self.fc4 = nn.Linear(400, 784)
 
     def encode(self, x):
@@ -52,9 +52,9 @@ class VAE(nn.Module):
         n = F.relu(self.fc21(x))
         s = torch.sigmoid(self.fc22(x))
         x = n * s
-        x = x.view(-1, 3, 3)
+        x = x.view(-1, 3, 1)
         z = norm(x, dim=1)
-        z = z.view(-1, 9)
+        z = z.view(-1, 3)
        
         return z
 
@@ -63,15 +63,11 @@ class VAE(nn.Module):
 
         return torch.sigmoid(self.fc4(x))
 
-    def forward(self, x, c, i):
+    def forward(self, x, c):
         x = x.view(-1, 784)
         z = self.encode(x)
-        mask = torch.zeros_like(z)
-        mask[:, :3*i] = 1
-        x = z * mask
        
-        x = torch.cat((x, c),dim=1)
-        
+        x = torch.cat((z, c),dim=1)
         x = self.decode(x)
 
         return x, z
@@ -101,8 +97,7 @@ def train(epoch):
         data = data.to(device)
         optimizer.zero_grad()
         
-        i = epoch % 3 + 1
-        rx, z = model(data, c_onehot, i)
+        rx, z = model(data, c_onehot)
         loss = loss_function(rx, data)
         loss.backward()
         train_loss += loss.item()
@@ -132,7 +127,7 @@ def test(epoch):
             c_onehot.scatter_(1, c, 1)
             c_onehot = c_onehot.to(device)
             data = data.to(device)
-            rx, z = model(data, c_onehot, 3)
+            rx, z = model(data, c_onehot)
             loss = loss_function(rx, data)
             test_loss += loss.item()
             if i == 0:
@@ -146,7 +141,7 @@ def test(epoch):
                 img = torch.cat((data[:64].view(-1,784), rx[:64], x[:64]),dim=0)
                 img = img.view(64*3, 1, 28, 28)
                 save_image(img.cpu(),
-                         'images/tree_02_sample_' + str(epoch) + '.png', nrow=64)
+                         'images/3_tree_01_sample_' + str(epoch) + '.png', nrow=64)
 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f}'.format(test_loss))
