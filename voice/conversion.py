@@ -106,35 +106,31 @@ def test(epoch):
     test_loss = 0
     test_similarity = 0
     with torch.no_grad():
-        for i, (data, c) in enumerate(test_loader):
-            data = data.view(-1, 800)
-            N = data.shape[0]
-            c = c.repeat(1, N)
-            c = c.transpose(0, 1)
-
-            c_onehot = torch.zeros(N, 10)
-            c_onehot.scatter_(1, c, 1)
-            c = c_onehot.to(device)
-            t = torch.arange(100)
-            t = t.type(torch.FloatTensor)
-            t = t.to(device)
-
+        for i, (data, f0, c) in enumerate(test_loader):
             data = data.to(device)
-        
-            rx, w, phase= model(data, c, t)
+            f0 = f0.to(device)
+       
+            rx = model(data, f0)
             loss = loss_function(rx, data)
+#            N = data.shape[0]
+#            c = c.repeat(1, N)
+#            c = c.transpose(0, 1)
+#
+#            c_onehot = torch.zeros(N, 10)
+#            c_onehot.scatter_(1, c, 1)
+#            c = c_onehot.to(device)
+#            t = torch.arange(100)
+#            t = t.type(torch.FloatTensor)
+#            t = t.to(device)
+#
+#            data = data.to(device)
+#        
+#            rx, w, phase= model(data, c, t)
+#            loss = loss_function(rx, data)
             test_loss += loss.item()
 
-            img = rx.view(-1)
-            img1 = data.view(-1)
             
-            img = img.cpu().numpy()
-            img1 = img1.cpu().numpy() + 2
-            if i==0: 
-                savefig('images/wav_%03d.png' % epoch, img, img1)
-            
-            
-#            if i == 0:
+            if i == 0:
 #                c1 = torch.zeros_like(c)
 #                c1[:,6] = 1
 #
@@ -150,17 +146,16 @@ def test(epoch):
 #                n = min(data.size(0), 16)
 #                img1 = torch.cat((data[:64].view(-1,784), rx[:64], x[:64]),dim=0)
 #                img1 = img1.view(64 * 3, 1, 28, 28)
-#                img = img[:4]
-#                img = img.view(4, 1, 50, 100)
-#                save_image(img.cpu(),
-#                         'images/fft_08_' + str(epoch) + '.png', nrow=1)
-#                save_image(img1.cpu(),
-#                         'images/z_08_' + str(epoch) + '.png', nrow=64)
-#
+                img = torch.cat((data, rx),dim=1)
+                img = img.unsqueeze(1)
+                print(img.shape)
+                save_image(img.cpu(),
+                         'images/csp_' + str(epoch) + '.png', nrow=1)
+                break
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f} '.format(test_loss))
 
 if __name__ == "__main__":
     for epoch in range(1, args.epochs + 1):
         train(epoch)
-#        test(epoch)
+        test(epoch)
