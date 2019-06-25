@@ -53,6 +53,7 @@ def savefig(path, mel, mel1):
 
 
 def loss_function(recon_x, x):
+    #BCE = F.binary_cross_entropy(recon_x, x, reduction='sum')
     BCE = F.mse_loss(recon_x, x, reduction='sum')
 
     return BCE
@@ -61,46 +62,43 @@ def loss_function(recon_x, x):
 def train(epoch):
     model.train()
     train_loss = 0
-    for batch_idx, (data, f0, c) in enumerate(train_loader):
-         print(data.shape)
-         print(f0.shape)
-#        N = data.shape[0]
-#        c = c.repeat(1, N)
-#        c = c.transpose(0, 1)
-#
-#        c_onehot = torch.zeros(data.shape[0], 10)
-#        c_onehot.scatter_(1, c, 1)
-#        c = c_onehot.to(device)
-#
-#        t = torch.arange(100)
-#        t = t.type(torch.FloatTensor)
-#        t = t.to(device)
-#
-         data = data.to(device)
-         optimizer.zero_grad()
+    for batch_idx, (data, c) in enumerate(train_loader):
+        data = data.view(-1, 800)
+        N = data.shape[0]
+        c = c.repeat(1, N)
+        c = c.transpose(0, 1)
+
+        c_onehot = torch.zeros(data.shape[0], 10)
+        c_onehot.scatter_(1, c, 1)
+        c = c_onehot.to(device)
+
+        t = torch.arange(100)
+        t = t.type(torch.FloatTensor)
+        t = t.to(device)
+
+        data = data.to(device)
+        optimizer.zero_grad()
         
-         x = model(data)
-         print(x.shape)
-         break
-#        loss = loss_function(rx, data)
-#        loss.backward()
-#        train_loss += loss.item()
-#        optimizer.step()
-#
-#        if batch_idx % args.log_interval == 0:
-#            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-#                epoch, batch_idx * len(data), len(train_loader.dataset),
-#                100. * batch_idx / len(train_loader),
-#                loss.item() / len(data), 
-#                ))
-#
-#    if epoch % 20 == 0:
-#        torch.save(model.state_dict(),"checkpoints/voice/fft_%03d.pt" % epoch)
-#    
-#
-#    print('====> Epoch: {} Average loss: {:.4f}'.format(
-#          epoch, train_loss /len(train_loader.dataset)))
-#
+        rx, w, phase= model(data, c, t)
+        loss = loss_function(rx, data)
+        loss.backward()
+        train_loss += loss.item()
+        optimizer.step()
+
+        if batch_idx % args.log_interval == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(data), len(train_loader.dataset),
+                100. * batch_idx / len(train_loader),
+                loss.item() / len(data), 
+                ))
+
+    if epoch % 20 == 0:
+        torch.save(model.state_dict(),"checkpoints/voice/fft_%03d.pt" % epoch)
+    
+
+    print('====> Epoch: {} Average loss: {:.4f}'.format(
+          epoch, train_loss /len(train_loader.dataset)))
+
 
 def test(epoch):
     model.eval()
@@ -164,4 +162,4 @@ def test(epoch):
 if __name__ == "__main__":
     for epoch in range(1, args.epochs + 1):
         train(epoch)
-#        test(epoch)
+        test(epoch)
