@@ -2,6 +2,17 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
+class PixelShuffle(nn.Module):
+    def __init__(self, upscale_factor):
+        super(PixelShuffle, self).__init__()
+        self.upscale_factor = upscale_factor
+
+    def forward(self, input):
+        n = input.shape[0]
+        c_out = input.shape[1] // 2
+        w_new = input.shape[2] * 2
+        return input.view(n, c_out, w_new)
+
 
 class Bottleneck(nn.Module):
     def __init__(self, c1, c2):
@@ -31,35 +42,35 @@ class Bottleneck(nn.Module):
         return out
 
 
-class Encode(nn.Module):
-    def __init__(self, DIM=128):
-        super(Encode, self).__init__()
+class Encoder(nn.Module):
+    def __init__(self, c=24, DIM=12):
+        super(Encoder, self).__init__()
 
-        self.h1 = nn.Conv1d(24, 128, 15, 1, 7)
-        self.h1_gates = nn.Conv1d(24, 128, 15, 1, 7)
+        self.h1 = nn.Conv1d(c, DIM, 15, 1, 7)
+        self.h1_gates = nn.Conv1d(c, DIM, 15, 1, 7)
 
         self.h2 = nn.Sequential(
-            nn.Conv1d(128, 256, 5, 2, 2),
-            nn.InstanceNorm1d(256),
+            nn.Conv1d(DIM, DIM * 2, 5, 2, 2),
+            nn.InstanceNorm1d(DIM * 2),
         ) 
 
         self.h2_gates = nn.Sequential(
-            nn.Conv1d(128, 256, 5, 2, 2),
-            nn.InstanceNorm1d(256),
+            nn.Conv1d(DIM, DIM * 2, 5, 2, 2),
+            nn.InstanceNorm1d(DIM * 2),
         ) 
 
         self.h3 = nn.Sequential(
-            nn.Conv1d(256, 512, 5, 2, 2),
-            nn.InstanceNorm1d(512),
+            nn.Conv1d(DIM * 2, DIM * 4, 5, 2, 2),
+            nn.InstanceNorm1d(DIM * 4),
         ) 
 
         self.h3_gates = nn.Sequential(
-            nn.Conv1d(256, 512, 5, 2, 2),
-            nn.InstanceNorm1d(512),
+            nn.Conv1d(DIM * 2, DIM * 4, 5, 2, 2),
+            nn.InstanceNorm1d(DIM * 4),
         ) 
 
         reslayers = []
-        for x in range(6):
+        for x in range(3):
             reslayers.append(Bottleneck(DIM * 4, DIM * 8))
 
         self.bottle = nn.Sequential(*reslayers)
@@ -75,52 +86,66 @@ class Encode(nn.Module):
 
         return x
 
+class Decoder(nn.Module):
+    def __init__(self, c=24, DIM=12):
+        super(Decoder, self).__init__()
 
-class Decode(nn.Module):
-    def __init__(self, DIM=128):
-        super(Decode, self).__init__()
+        self.h1 = nn.Sequential(
+            nn.Conv1d(DIM * 4, DIM * 4, 5, 1, 2),
+            PixelShuffle(upscale_factor=2),
+            nn.InstanceNorm1d(DIM * 2),
+        ) 
 
-        self.e0 = Layer(3, DIM)
-        self.e1 = Layer(DIM, DIM * 2)
-        self.e2 = Layer(DIM * 2, DIM * 4)
-        self.conv = nn.Conv1d(DIM * 4, 24, 1)
+        self.h1_gates = nn.Sequential(
+            nn.Conv1d(DIM * 4, DIM * 4, 5, 1, 2),
+            PixelShuffle(upscale_factor=2),
+            nn.InstanceNorm1d(DIM * 2),
+        ) 
+
+        self.h2 = nn.Sequential(
+            nn.Conv1d(DIM * 2, DIM * 2, 5, 1, 2),
+            PixelShuffle(upscale_factor=2),
+            nn.InstanceNorm1d(DIM),
+        ) 
+
+        self.h2_gates = nn.Sequential(
+            nn.Conv1d(DIM * 2, DIM * 2 , 5, 1, 2),
+            PixelShuffle(upscale_factor=2),
+            nn.InstanceNorm1d(DIM),
+        ) 
+
+        self.h3 = nn.Conv1d(DIM, c, 15, 1, 7)
+        self.h3_gates = nn.Conv1d(DIM, c, 15, 1, 7)
 
         reslayers = []
-        for x in range(6):
-            reslayers.append(Bottleneck(DIM * 4, DIM * 4))
+        for x in range(3):
+            reslayers.append(Bottleneck(DIM * 4, DIM * 8))
 
         self.bottle = nn.Sequential(*reslayers)
 
+
     def forward(self, x):
-        x = self.e0(x)
-        x = self.e1(x)
-        x = self.e2(x)
         x = self.bottle(x)
-        x = self.conv(x)
+        x = self.h1(x) * torch.sigmoid(self.h1_gates(x))
+        x = self.h2(x) * torch.sigmoid(self.h2_gates(x))
+        x = self.h3(x) * torch.sigmoid(self.h3_gates(x))
 
         return x
 
 
 class VAE(nn.Module):
-    def __init__(self, DIM=500):
+    def __init__(self):
         super(VAE, self).__init__()
 
-        self.enc = Encode()
+        self.enc = Encoder()
+        self.ef0 = Encoder(1, 20)
+        self.dec = Decoder()
 
-    def encode(self, x):
+
+    def forward(self, x, f0):
         x = self.enc(x)
-
-        return x 
-
-
-#    def decode(self, z):
-#        x = self.dec(z)
-#
-#        return x
-
-
-    def forward(self, x):
-        x = self.enc(x)
+        zf0 = self.ef0(f0)
+        x = self.dec(x)
 
         return x
 

@@ -25,8 +25,16 @@ def default_loader(path):
     x, fs = librosa.load(path, sr=16000, dtype=np.float64)
     f0, sp, ap = pw.wav2world(x, fs)
     csp = pw.code_spectral_envelope(sp, fs, 24)
-    csp = coded_sp_padding(csp.T)
-    csp = csp.astype(np.float32)
+    
+    f0 = f0.reshape((f0.shape[0],1))
+    img = np.concatenate((f0,csp),axis=1)
+    img = coded_sp_padding(img.T)
+    
+    img = img.astype(np.float32)
+    
+    csp = img[:24]
+    f0 = img[24]
+    f0 = f0.reshape((1,f0.shape[0]))
     
     return csp, f0
 

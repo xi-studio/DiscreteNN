@@ -44,6 +44,8 @@ test_loader = DataLoader(Audio('test'),batch_size=args.batch_size, shuffle=True,
 model = VAE().to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
+print('# parameters:', sum(param.numel() for param in model.parameters()) /1000000.0 * 4)
+
 def savefig(path, mel, mel1):
     plt.figure(figsize=(10, 5))
     plt.plot(mel)
@@ -53,7 +55,7 @@ def savefig(path, mel, mel1):
 
 
 def loss_function(recon_x, x):
-    BCE = F.mse_loss(recon_x, x, reduction='sum')
+    BCE = F.mse_loss(recon_x, x)
 
     return BCE
 
@@ -62,8 +64,6 @@ def train(epoch):
     model.train()
     train_loss = 0
     for batch_idx, (data, f0, c) in enumerate(train_loader):
-         print(data.shape)
-         print(f0.shape)
 #        N = data.shape[0]
 #        c = c.repeat(1, N)
 #        c = c.transpose(0, 1)
@@ -76,31 +76,30 @@ def train(epoch):
 #        t = t.type(torch.FloatTensor)
 #        t = t.to(device)
 #
-         data = data.to(device)
-         optimizer.zero_grad()
-        
-         x = model(data)
-         print(x.shape)
-         break
-#        loss = loss_function(rx, data)
-#        loss.backward()
-#        train_loss += loss.item()
-#        optimizer.step()
-#
-#        if batch_idx % args.log_interval == 0:
-#            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-#                epoch, batch_idx * len(data), len(train_loader.dataset),
-#                100. * batch_idx / len(train_loader),
-#                loss.item() / len(data), 
-#                ))
-#
+        data = data.to(device)
+        f0 = f0.to(device)
+        optimizer.zero_grad()
+       
+        rx = model(data, f0)
+        loss = loss_function(rx, data)
+        loss.backward()
+        train_loss += loss.item()
+        optimizer.step()
+
+        if batch_idx % args.log_interval == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(data), len(train_loader.dataset),
+                100. * batch_idx / len(train_loader),
+                loss.item() / len(data), 
+                ))
+
 #    if epoch % 20 == 0:
 #        torch.save(model.state_dict(),"checkpoints/voice/fft_%03d.pt" % epoch)
 #    
 #
-#    print('====> Epoch: {} Average loss: {:.4f}'.format(
-#          epoch, train_loss /len(train_loader.dataset)))
-#
+    print('====> Epoch: {} Average loss: {:.4f}'.format(
+          epoch, train_loss /len(train_loader.dataset)))
+
 
 def test(epoch):
     model.eval()
