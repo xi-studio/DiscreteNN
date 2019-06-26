@@ -43,7 +43,7 @@ class Bottleneck(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, c=24, DIM=12):
+    def __init__(self, c=24, DIM=64):
         super(Encoder, self).__init__()
 
         self.h1 = nn.Conv1d(c, DIM, 15, 1, 7)
@@ -51,22 +51,22 @@ class Encoder(nn.Module):
 
         self.h2 = nn.Sequential(
             nn.Conv1d(DIM, DIM * 2, 5, 2, 2),
-            nn.InstanceNorm1d(DIM * 2),
+            #nn.InstanceNorm1d(DIM * 2),
         ) 
 
         self.h2_gates = nn.Sequential(
             nn.Conv1d(DIM, DIM * 2, 5, 2, 2),
-            nn.InstanceNorm1d(DIM * 2),
+            #nn.InstanceNorm1d(DIM * 2),
         ) 
 
         self.h3 = nn.Sequential(
             nn.Conv1d(DIM * 2, DIM * 4, 5, 2, 2),
-            nn.InstanceNorm1d(DIM * 4),
+            #nn.InstanceNorm1d(DIM * 4),
         ) 
 
         self.h3_gates = nn.Sequential(
             nn.Conv1d(DIM * 2, DIM * 4, 5, 2, 2),
-            nn.InstanceNorm1d(DIM * 4),
+            #nn.InstanceNorm1d(DIM * 4),
         ) 
 
         reslayers = []
@@ -87,31 +87,31 @@ class Encoder(nn.Module):
         return x
 
 class Decoder(nn.Module):
-    def __init__(self, c=24, DIM=12):
+    def __init__(self, c=24, DIM=64):
         super(Decoder, self).__init__()
 
         self.h1 = nn.Sequential(
             nn.Conv1d(DIM * 4, DIM * 4, 5, 1, 2),
             PixelShuffle(upscale_factor=2),
-            nn.InstanceNorm1d(DIM * 2),
+            #nn.InstanceNorm1d(DIM * 2),
         ) 
 
         self.h1_gates = nn.Sequential(
             nn.Conv1d(DIM * 4, DIM * 4, 5, 1, 2),
             PixelShuffle(upscale_factor=2),
-            nn.InstanceNorm1d(DIM * 2),
+            #nn.InstanceNorm1d(DIM * 2),
         ) 
 
         self.h2 = nn.Sequential(
             nn.Conv1d(DIM * 2, DIM * 2, 5, 1, 2),
             PixelShuffle(upscale_factor=2),
-            nn.InstanceNorm1d(DIM),
+            #nn.InstanceNorm1d(DIM),
         ) 
 
         self.h2_gates = nn.Sequential(
             nn.Conv1d(DIM * 2, DIM * 2 , 5, 1, 2),
             PixelShuffle(upscale_factor=2),
-            nn.InstanceNorm1d(DIM),
+            #nn.InstanceNorm1d(DIM),
         ) 
 
         self.h3 = nn.Conv1d(DIM, c, 15, 1, 7)
