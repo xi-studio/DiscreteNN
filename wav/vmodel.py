@@ -67,27 +67,35 @@ class VAE(nn.Module):
         self.d = Decoder()
         self.amplitude = Key()
 
+        self.main = nn.Sequential(
+                    nn.Conv1d(256,256,3,1,1),
+                    nn.ReLU(),
+                    nn.Conv1d(256,256,3,1,1),
+        )
+
     def forward(self, x, c, t):
-        N = x.shape[0]
+        x = self.main(x)
+        return x
+#        N = x.shape[0]
+#
+#        w = self.amplitude(c)
+#        phase = self.e(x)
+#        px = torch.cat((phase, w), dim=1)
+#        
+#
+#        w = w.view(N, 50, 1)
+#        phase = phase.view(N, 50, 1)
+#       
+#        w = w.repeat(1, 1, 100)
+#        phase = phase.repeat(1, 1, 100)
+#
+#        x = torch.sin(2 * np.pi * w * t  + np.pi * phase )
+#        x = x.sum(dim=1)
+#        x = x.view(N, 100)         
+#        noise = torch.randn_like(x)
+#        x = noise + x
+#        
+#       
+#        x = self.d(px)
 
-        w = self.amplitude(c)
-        phase = self.e(x)
-        px = torch.cat((phase, w), dim=1)
-        
-
-        w = w.view(N, 50, 1)
-        phase = phase.view(N, 50, 1)
-       
-        w = w.repeat(1, 1, 100)
-        phase = phase.repeat(1, 1, 100)
-
-        x = torch.sin(2 * np.pi * w * t  + np.pi * phase )
-        x = x.sum(dim=1)
-        x = x.view(N, 100)         
-        noise = torch.randn_like(x)
-        x = noise + x
-        
-       
-        x = self.d(px)
-
-        return x, w, phase
+#        return x, w, phase

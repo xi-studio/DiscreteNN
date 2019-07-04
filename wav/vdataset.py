@@ -10,10 +10,14 @@ import librosa
 
 def default_loader(path):
     x, sr = librosa.load(path, sr=16000)
-    k = x.shape[0] // 800
-    img = x[:800 * k]
-    img = img.reshape(k, 800)
-    
+    idx = np.random.randint(0, x.shape[0] - 16000)
+    img = x[idx: idx + 16000]
+
+    img = mu_law_encoding(img, 256)
+    img = quantize_data(img, 256)
+
+    img = img.reshape(40, 400)
+
     
     return img
 
@@ -39,3 +43,17 @@ class Audio(data.Dataset):
         return len(self.image_list)
 
 
+def mu_law_encoding(data, mu):
+    mu_x = np.sign(data) * np.log(1 + mu * np.abs(data)) / np.log(mu + 1)
+    return mu_x
+
+
+def mu_law_expansion(data, mu):
+    s = np.sign(data) * (np.exp(np.abs(data) * np.log(mu + 1)) - 1) / mu
+    return s
+
+def quantize_data(data, classes):
+    mu_x = mu_law_encoding(data, classes)
+    bins = np.linspace(-1, 1, classes)
+    quantized = np.digitize(mu_x, bins) - 1
+    return quantized

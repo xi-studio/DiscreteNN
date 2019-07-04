@@ -46,6 +46,10 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 print('# parameters:', sum(param.numel() for param in model.parameters()) /1000000.0 * 4)
 
+
+loss_function = nn.CrossEntropyLoss()
+
+
 def savefig(path, mel, mel1):
     plt.figure(figsize=(10, 5))
     plt.plot(mel)
@@ -53,35 +57,31 @@ def savefig(path, mel, mel1):
     plt.savefig(path, format="png")
     plt.close()
 
-
-def loss_function(recon_x, x):
-    BCE = F.mse_loss(recon_x, x)
-
-    return BCE
-
-
 def train(epoch):
     model.train()
     train_loss = 0
-    for batch_idx, (data, f0, c) in enumerate(train_loader):
-#        N = data.shape[0]
-#        c = c.repeat(1, N)
-#        c = c.transpose(0, 1)
-#
-#        c_onehot = torch.zeros(data.shape[0], 10)
-#        c_onehot.scatter_(1, c, 1)
-#        c = c_onehot.to(device)
-#
-#        t = torch.arange(100)
-#        t = t.type(torch.FloatTensor)
-#        t = t.to(device)
-#
-        data = data.to(device)
-        f0 = f0.to(device)
+    for batch_idx, (data, c) in enumerate(train_loader):
+        x = data.view(-1)
+
+        x_hot = torch.zeros(x.shape[0], 256)
+        x_hot.scatter_(1, x.unsqueeze(1), 1)
+
+        x = x.to(device)
+        x_hot = x_hot.to(device)
+       
+        x_hot = x_hot.view(-1, 400, 256)
+        x_hot = x_hot.transpose(1, 2)
+
+        t = torch.arange(100)
+        t = t.type(torch.FloatTensor)
+        t = t.to(device)
+
         optimizer.zero_grad()
        
-        rx = model(data, f0)
-        loss = loss_function(rx, data)
+        rx = model(x_hot, c, t)
+        rx = rx.transpose(1, 2)
+        rx = rx.contiguous()
+        loss = loss_function(rx.view(-1, 256), x)
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
@@ -104,54 +104,43 @@ def train(epoch):
 def test(epoch):
     model.eval()
     test_loss = 0
-    test_similarity = 0
     with torch.no_grad():
-        for i, (data, f0, c) in enumerate(test_loader):
-            data = data.to(device)
-            f0 = f0.to(device)
+        for i, (data, c) in enumerate(test_loader):
+            x = data.view(-1)
+
+            x_hot = torch.zeros(x.shape[0], 256)
+            x_hot.scatter_(1, x.unsqueeze(1), 1)
+
+            x = x.to(device)
+            x_hot = x_hot.to(device)
        
-            rx = model(data, f0)
-            loss = loss_function(rx, data)
-#            N = data.shape[0]
-#            c = c.repeat(1, N)
-#            c = c.transpose(0, 1)
-#
-#            c_onehot = torch.zeros(N, 10)
-#            c_onehot.scatter_(1, c, 1)
-#            c = c_onehot.to(device)
-#            t = torch.arange(100)
-#            t = t.type(torch.FloatTensor)
-#            t = t.to(device)
-#
-#            data = data.to(device)
-#        
-#            rx, w, phase= model(data, c, t)
-#            loss = loss_function(rx, data)
+            x_hot = x_hot.view(-1, 400, 256)
+            x_hot = x_hot.transpose(1, 2)
+
+            t = torch.arange(100)
+            t = t.type(torch.FloatTensor)
+            t = t.to(device)
+       
+            rx = model(x_hot, c, t)
+            rx = rx.transpose(1, 2)
+            rx = rx.contiguous()
+            rx = rx.view(-1, 256)
+            loss = loss_function(rx, x)
+
             test_loss += loss.item()
+            rx = rx.argmax(dim=1)
 
             
             if i == 0:
-#                c1 = torch.zeros_like(c)
-#                c1[:,6] = 1
-#
-#                w1 = model.amplitude(c1)
-#                w1 = w1.view(data.shape[0], 50, 1)
-#                w1 = w1.repeat(1, 1, 100)
-#                
-#                x =  torch.sin(2 * np.pi * w1 * t + np.pi * phase)
-#                img = x
-#                x = x.sum(dim=1)
-#                x = model.d(x)
-#               
-#                n = min(data.size(0), 16)
-#                img1 = torch.cat((data[:64].view(-1,784), rx[:64], x[:64]),dim=0)
-#                img1 = img1.view(64 * 3, 1, 28, 28)
-                img = torch.cat((data, rx),dim=1)
-                img = img.unsqueeze(1)
-                print(img.shape)
-                save_image(img.cpu(),
-                         'images/csp_' + str(epoch) + '.png', nrow=1)
-                break
+                x = x.view(args.batch_size, 16000)
+                rx = rx.view(args.batch_size, 16000)
+                savefig('images/test_%03d.png' % epoch, x[0].cpu().numpy(), rx[0].cpu().numpy() + 260)
+                
+#                img = torch.cat((data, rx),dim=1)
+#                img = img.unsqueeze(1)
+#                print(img.shape)
+#                save_image(img.cpu(),
+#                         'images/csp_' + str(epoch) + '.png', nrow=1)
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f} '.format(test_loss))
 
