@@ -118,8 +118,8 @@ class Key(nn.Module):
     def __init__(self):
         super(Key, self).__init__()
 
-        self.fc1 = nn.Linear(1, 100)
-        self.fc2 = nn.Linear(100, 100)
+        self.fc1 = nn.Linear(10, 50)
+        self.fc2 = nn.Linear(50, 50)
 
     def forward(self, x):
         x = torch.relu(self.fc1(x))
@@ -131,57 +131,40 @@ class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
         
-#        self.e = Encoder()
-#        self.d = Decoder()
-        self.amplitude = Key()
+        self.e = Encoder()
+        self.d = Decoder()
+#        self.amplitude = Key()
 
-        self.en = nn.Sequential(
-                    nn.Linear(256*400, 1024),
+        self.main = nn.Sequential(
+                    nn.Conv1d(256,256,3,1,1),
                     nn.ReLU(),
-                    nn.Linear(1024, 512),
-                    nn.BatchNorm1d(512),
-                    nn.ReLU(),
-                    nn.Linear(512, 512),
-                    nn.BatchNorm1d(512),
-                    nn.ReLU(),
-                    nn.Linear(512, 100),
-                    nn.Sigmoid(),
-        )
-
-        self.de = nn.Sequential(
-                    nn.Linear(100, 512),
-                    nn.ReLU(),
-                    nn.Linear(512, 512),
-                    nn.BatchNorm1d(512),
-                    nn.ReLU(),
-                    nn.Linear(512, 1024),
-                    nn.BatchNorm1d(1024),
-                    nn.ReLU(),
-                    nn.Linear(1024, 256 * 400),
+                    nn.Conv1d(256,256,3,1,1),
         )
 
     def forward(self, x, c, t):
-#        x = self.e(x)
-#        x = self.d(x)
-        x = x.view(-1, 256 * 400)
-        
-        N = x.shape[0]
-        w = self.amplitude(c)
-        phase = self.en(x)
-        
-        w = w.view(N, 100, 1)
-        phase = phase.view(N, 100, 1)
-       
-        w = w.repeat(1, 1, 100)
-        phase = phase.repeat(1, 1, 100)
+        x = self.e(x)
+        x = self.d(x)
+        return x
+#        N = x.shape[0]
+#
+#        w = self.amplitude(c)
+#        phase = self.e(x)
+#        px = torch.cat((phase, w), dim=1)
+#        
+#
+#        w = w.view(N, 50, 1)
+#        phase = phase.view(N, 50, 1)
+#       
+#        w = w.repeat(1, 1, 100)
+#        phase = phase.repeat(1, 1, 100)
+#
+#        x = torch.sin(2 * np.pi * w * t  + np.pi * phase )
+#        x = x.sum(dim=1)
+#        x = x.view(N, 100)         
+#        noise = torch.randn_like(x)
+#        x = noise + x
+#        
+#       
+#        x = self.d(px)
 
-        x = torch.sin(2 * np.pi * w * t  + np.pi * phase )
-        x = x.sum(dim=1)
-        x = x.view(N, 100)         
-        noise = torch.randn_like(x)
-        x = noise + x
-        
-        x = self.de(x)
-        x = x.view(-1, 256, 400)
-
-        return x 
+#        return x, w, phase

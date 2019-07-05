@@ -17,9 +17,9 @@ def default_loader(path):
     img = quantize_data(img, 256)
 
     img = img.reshape(40, 400)
+    ID = np.ones((40, 1), dtype=np.float32)
 
-    
-    return img
+    return img, ID
 
 
 class Audio(data.Dataset):
@@ -29,12 +29,10 @@ class Audio(data.Dataset):
 
     def __getitem__(self, index):
         path = self.image_list[index]
-        audio = default_loader(path) 
+        audio, ID = default_loader(path) 
         
-        ID = 0
         if '8_' in path:
-            ID = 1
-
+            ID = ID * 2
 
         return audio, ID
 

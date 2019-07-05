@@ -50,10 +50,11 @@ print('# parameters:', sum(param.numel() for param in model.parameters()) /10000
 loss_function = nn.CrossEntropyLoss()
 
 
-def savefig(path, mel, mel1):
+def savefig(path, mel, mel1, mel2):
     plt.figure(figsize=(10, 5))
     plt.plot(mel)
     plt.plot(mel1)
+    plt.plot(mel2)
     plt.savefig(path, format="png")
     plt.close()
 
@@ -66,11 +67,12 @@ def train(epoch):
         x_hot = torch.zeros(x.shape[0], 256)
         x_hot.scatter_(1, x.unsqueeze(1), 1)
 
+        c = c.to(device)
         x = x.to(device)
         x_hot = x_hot.to(device)
        
         x_hot = x_hot.view(-1, 400, 256)
-        x_hot = x_hot.transpose(1, 2)
+        x_hot = x_hot.transpose(1, 2).contiguous()
 
         t = torch.arange(100)
         t = t.type(torch.FloatTensor)
@@ -79,8 +81,7 @@ def train(epoch):
         optimizer.zero_grad()
        
         rx = model(x_hot, c, t)
-        rx = rx.transpose(1, 2)
-        rx = rx.contiguous()
+        rx = rx.transpose(1, 2).contiguous()
         loss = loss_function(rx.view(-1, 256), x)
         loss.backward()
         train_loss += loss.item()
@@ -93,10 +94,10 @@ def train(epoch):
                 loss.item() / len(data), 
                 ))
 
-#    if epoch % 20 == 0:
-#        torch.save(model.state_dict(),"checkpoints/voice/fft_%03d.pt" % epoch)
-#    
-#
+    if epoch % 50 == 0:
+        torch.save(model.state_dict(),"/data/tree/voice/phase_%03d.pt" % epoch)
+    
+
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss /len(train_loader.dataset)))
 
@@ -111,30 +112,40 @@ def test(epoch):
             x_hot = torch.zeros(x.shape[0], 256)
             x_hot.scatter_(1, x.unsqueeze(1), 1)
 
+            c = c.to(device)
             x = x.to(device)
             x_hot = x_hot.to(device)
        
             x_hot = x_hot.view(-1, 400, 256)
-            x_hot = x_hot.transpose(1, 2)
+            x_hot = x_hot.transpose(1, 2).contiguous()
 
             t = torch.arange(100)
             t = t.type(torch.FloatTensor)
             t = t.to(device)
        
             rx = model(x_hot, c, t)
-            rx = rx.transpose(1, 2)
-            rx = rx.contiguous()
+            rx = rx.transpose(1, 2).contiguous()
             rx = rx.view(-1, 256)
             loss = loss_function(rx, x)
 
+            c1 = torch.ones_like(c)
+            if torch.mean(c)== 1:
+                c1 = c1 * 2
+
+            smp = model(x_hot, c1, t)
+            smp = smp.transpose(1, 2).contiguous()
+            smp = smp.view(-1, 256)
+
             test_loss += loss.item()
             rx = rx.argmax(dim=1)
+            smp = smp.argmax(dim=1)
 
             
             if i == 0:
                 x = x.view(args.batch_size, 16000)
                 rx = rx.view(args.batch_size, 16000)
-                savefig('images/test_%03d.png' % epoch, x[0].cpu().numpy(), rx[0].cpu().numpy() + 260)
+                smp = smp.view(args.batch_size, 16000)
+                savefig('images/phase_01_%03d.png' % epoch, x[0].cpu().numpy(), rx[0].cpu().numpy() + 260, smp[0].cpu().numpy() + 520)
                 
 #                img = torch.cat((data, rx),dim=1)
 #                img = img.unsqueeze(1)
