@@ -46,42 +46,35 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 print('# parameters:', sum(param.numel() for param in model.parameters()) /1000000.0 * 4)
 
-def savefig(path, mel, mel1):
+
+loss_function = nn.MSELoss()
+
+
+def savefig(path, mel, mel1, mel2):
     plt.figure(figsize=(10, 5))
     plt.plot(mel)
     plt.plot(mel1)
+    plt.plot(mel2)
     plt.savefig(path, format="png")
     plt.close()
-
-
-def loss_function(recon_x, x):
-    BCE = F.mse_loss(recon_x, x)
-
-    return BCE
-
 
 def train(epoch):
     model.train()
     train_loss = 0
-    for batch_idx, (data, f0, c) in enumerate(train_loader):
-#        N = data.shape[0]
-#        c = c.repeat(1, N)
-#        c = c.transpose(0, 1)
-#
-#        c_onehot = torch.zeros(data.shape[0], 10)
-#        c_onehot.scatter_(1, c, 1)
-#        c = c_onehot.to(device)
-#
-#        t = torch.arange(100)
-#        t = t.type(torch.FloatTensor)
-#        t = t.to(device)
-#
-        data = data.to(device)
-        f0 = f0.to(device)
+    for batch_idx, (data, c) in enumerate(train_loader):
+        x = data.view(-1, 240)
+        c = c.view(-1, 10)
+        x = x.to(device)
+        c = c.to(device)
+
+        t = torch.arange(100)
+        t = t.type(torch.FloatTensor)
+        t = t.to(device)
+
         optimizer.zero_grad()
        
-        rx = model(data, f0)
-        loss = loss_function(rx, data)
+        rx = model(x, c, t)
+        loss = loss_function(rx, x)
         loss.backward()
         train_loss += loss.item()
         optimizer.step()
@@ -93,8 +86,8 @@ def train(epoch):
                 loss.item() / len(data), 
                 ))
 
-#    if epoch % 20 == 0:
-#        torch.save(model.state_dict(),"checkpoints/voice/fft_%03d.pt" % epoch)
+#    if epoch % 50 == 0:
+#        torch.save(model.state_dict(),"/data/tree/voice/phase_%03d.pt" % epoch)
 #    
 #
     print('====> Epoch: {} Average loss: {:.4f}'.format(
@@ -104,54 +97,33 @@ def train(epoch):
 def test(epoch):
     model.eval()
     test_loss = 0
-    test_similarity = 0
     with torch.no_grad():
-        for i, (data, f0, c) in enumerate(test_loader):
-            data = data.to(device)
-            f0 = f0.to(device)
+        for i, (data, c) in enumerate(test_loader):
+            x = data.view(-1, 240)
+            c = c.view(-1, 10)
+            x = x.to(device)
+            c = c.to(device)
+
+            t = torch.arange(100)
+            t = t.type(torch.FloatTensor)
+            t = t.to(device)
+
        
-            rx = model(data, f0)
-            loss = loss_function(rx, data)
-#            N = data.shape[0]
-#            c = c.repeat(1, N)
-#            c = c.transpose(0, 1)
-#
-#            c_onehot = torch.zeros(N, 10)
-#            c_onehot.scatter_(1, c, 1)
-#            c = c_onehot.to(device)
-#            t = torch.arange(100)
-#            t = t.type(torch.FloatTensor)
-#            t = t.to(device)
-#
-#            data = data.to(device)
-#        
-#            rx, w, phase= model(data, c, t)
-#            loss = loss_function(rx, data)
+            rx = model(x, c, t)
+            loss = loss_function(rx, x)
             test_loss += loss.item()
 
-            
+            img_rx = rx.view(-1, 1, 10, 24)
+            img_x = x.view(-1, 1, 10, 24)
+            img_rx = img_rx.transpose(2,3)
+            img_x = img_x.transpose(2,3)
+            img = torch.cat((img_rx, img_x), dim=0)
+
             if i == 0:
-#                c1 = torch.zeros_like(c)
-#                c1[:,6] = 1
-#
-#                w1 = model.amplitude(c1)
-#                w1 = w1.view(data.shape[0], 50, 1)
-#                w1 = w1.repeat(1, 1, 100)
-#                
-#                x =  torch.sin(2 * np.pi * w1 * t + np.pi * phase)
-#                img = x
-#                x = x.sum(dim=1)
-#                x = model.d(x)
-#               
-#                n = min(data.size(0), 16)
-#                img1 = torch.cat((data[:64].view(-1,784), rx[:64], x[:64]),dim=0)
-#                img1 = img1.view(64 * 3, 1, 28, 28)
-                img = torch.cat((data, rx),dim=1)
-                img = img.unsqueeze(1)
-                print(img.shape)
-                save_image(img.cpu(),
-                         'images/csp_' + str(epoch) + '.png', nrow=1)
-                break
+                 save_image(img.cpu(),
+                         'images/csp_img_01_%03d.png' % epoch, nrow=20)
+                 break
+                
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f} '.format(test_loss))
 

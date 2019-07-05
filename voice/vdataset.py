@@ -9,34 +9,18 @@ import random
 import librosa
 import pyworld as pw
 
-def coded_sp_padding(coded_sp, multiple = 4):
-
-    num_features = coded_sp.shape[0]
-    num_frames = coded_sp.shape[1]
-    num_frames_padded = int(np.ceil(num_frames / multiple)) * multiple
-    num_frames_diff = num_frames_padded - num_frames
-    num_pad_left = num_frames_diff // 2
-    num_pad_right = num_frames_diff - num_pad_left
-    coded_sp_padded = np.pad(coded_sp, ((0, 0), (num_pad_left, num_pad_right)), 'constant', constant_values = 0)
-
-    return coded_sp_padded
-
 def default_loader(path):
     x, fs = librosa.load(path, sr=16000, dtype=np.float64)
-    f0, sp, ap = pw.wav2world(x, fs)
+    idx = np.random.randint(0, x.shape[0] - 16000)
+    img = x[idx: idx + 16000 - 64]
+    f0, sp, ap= pw.wav2world(img, fs)
     csp = pw.code_spectral_envelope(sp, fs, 24)
-    
-    f0 = f0.reshape((f0.shape[0],1))
-    img = np.concatenate((f0,csp),axis=1)
-    img = coded_sp_padding(img.T)
-    
-    img = img.astype(np.float32)
-    
-    csp = img[:24]
-    f0 = img[24]
-    f0 = f0.reshape((1,f0.shape[0]))
-    
-    return csp, f0
+   
+    csp = csp.reshape((20, 240))
+    csp = csp.astype(np.float32)
+    ID = np.zeros((20, 10), dtype=np.float32)
+
+    return csp, ID
 
 
 class Audio(data.Dataset):
@@ -46,17 +30,46 @@ class Audio(data.Dataset):
 
     def __getitem__(self, index):
         path = self.image_list[index]
-        csp, f0 = default_loader(path) 
+        audio, ID = default_loader(path) 
         
-        ID = 0
-        if '8_' in path:
-            ID = 1
+        if '4_' in path:
+            ID[:,0] = 1
+        else:
+            ID[:,1] = 1
 
-
-        return csp, f0, ID
+        return audio, ID
 
     def __len__(self):
 
         return len(self.image_list)
 
 
+def mu_law_encoding(data, mu):
+    mu_x = np.sign(data) * np.log(1 + mu * np.abs(data)) / np.log(mu + 1)
+    return mu_x
+
+
+def mu_law_expansion(data, mu):
+    s = np.sign(data) * (np.exp(np.abs(data) * np.log(mu + 1)) - 1) / mu
+    return s
+
+def quantize_data(data, classes):
+    mu_x = mu_law_encoding(data, classes)
+    bins = np.linspace(-1, 1, classes)
+    quantized = np.digitize(mu_x, bins) - 1
+    return quantized
+
+def logf0_statistics(f0s):
+
+    log_f0s_concatenated = np.ma.log(np.concatenate(f0s))
+    log_f0s_mean = log_f0s_concatenated.mean()
+    log_f0s_std = log_f0s_concatenated.std()
+
+    return log_f0s_mean, log_f0s_std
+
+def pitch_conversion(f0, mean_log_src, std_log_src, mean_log_target, std_log_target):
+
+    # Logarithm Gaussian normalization for Pitch Conversions
+    f0_converted = np.exp((np.log(f0) - mean_log_src) / std_log_src * std_log_target + mean_log_target)
+
+    return f0_converted
