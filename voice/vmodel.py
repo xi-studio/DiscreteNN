@@ -43,7 +43,6 @@ class BasicBlock_1(nn.Module):
     def forward(self, x):
         identity = x
         out = self.bottle(x)
-        #out = torch.cat((identity, out),dim=1)
         out += identity
         out = torch.relu(self.end(out))
 
@@ -64,7 +63,6 @@ class BasicBlock_2(nn.Module):
     def forward(self, x):
         identity = x
         out = self.bottle(x)
-        #out = torch.cat((identity, out),dim=1)
         out += identity
         out = torch.relu(self.end(out))
 
@@ -85,7 +83,6 @@ class BasicBlock_3(nn.Module):
     def forward(self, x):
         identity = x
         out = self.bottle(x)
-        #out = torch.cat((identity, out),dim=1)
         out += identity
         out = torch.relu(self.end(out))
 
