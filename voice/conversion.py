@@ -47,7 +47,7 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 print('# parameters:', sum(param.numel() for param in model.parameters()) /1000000.0 * 4)
 
 
-loss_function = nn.MSELoss()
+loss_function = nn.MSELoss(reduction='sum')
 
 
 def savefig(path, mel, mel1, mel2):
@@ -86,10 +86,10 @@ def train(epoch):
                 loss.item() / len(data), 
                 ))
 
-#    if epoch % 50 == 0:
-#        torch.save(model.state_dict(),"/data/tree/voice/phase_%03d.pt" % epoch)
-#    
-#
+    if epoch % 20 == 0:
+        torch.save(model.state_dict(),"/data/tree/voice/csp_%03d.pt" % epoch)
+    
+
     print('====> Epoch: {} Average loss: {:.4f}'.format(
           epoch, train_loss /len(train_loader.dataset)))
 
@@ -122,7 +122,6 @@ def test(epoch):
             if i == 0:
                  save_image(img.cpu(),
                          'images/csp_img_01_%03d.png' % epoch, nrow=20)
-                 break
                 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f} '.format(test_loss))
