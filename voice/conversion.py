@@ -47,7 +47,7 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 print('# parameters:', sum(param.numel() for param in model.parameters()) /1000000.0 * 4)
 
 
-loss_function = nn.MSELoss(reduction='sum')
+loss_function = nn.MSELoss()
 
 
 def savefig(path, mel, mel1, mel2):
@@ -61,10 +61,8 @@ def savefig(path, mel, mel1, mel2):
 def train(epoch):
     model.train()
     train_loss = 0
-    for batch_idx, (data, c) in enumerate(train_loader):
-        x = data.view(-1, 240)
-        c = c.view(-1, 10)
-        x = x.to(device)
+    for batch_idx, (data, f0, c) in enumerate(train_loader):
+        x = data.to(device)
         c = c.to(device)
 
         t = torch.arange(100)
@@ -98,30 +96,25 @@ def test(epoch):
     model.eval()
     test_loss = 0
     with torch.no_grad():
-        for i, (data, c) in enumerate(test_loader):
-            x = data.view(-1, 240)
-            c = c.view(-1, 10)
-            x = x.to(device)
+        for i, (data, f0, c) in enumerate(test_loader):
+            x = data.to(device)
             c = c.to(device)
 
             t = torch.arange(100)
             t = t.type(torch.FloatTensor)
             t = t.to(device)
 
-       
             rx = model(x, c, t)
             loss = loss_function(rx, x)
             test_loss += loss.item()
 
-            img_rx = rx.view(-1, 1, 10, 24)
-            img_x = x.view(-1, 1, 10, 24)
-            img_rx = img_rx.transpose(2,3)
-            img_x = img_x.transpose(2,3)
+            img_rx = rx.unsqueeze(1)
+            img_x = x.unsqueeze(1)
             img = torch.cat((img_rx, img_x), dim=0)
 
             if i == 0:
                  save_image(img.cpu(),
-                         'images/csp_img_01_%03d.png' % epoch, nrow=20)
+                         'images/csp_conv_%03d.png' % epoch, nrow=1)
                 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f} '.format(test_loss))

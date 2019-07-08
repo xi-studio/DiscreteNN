@@ -16,11 +16,12 @@ def default_loader(path):
     f0, sp, ap= pw.wav2world(img, fs)
     csp = pw.code_spectral_envelope(sp, fs, 24)
    
-    csp = csp.reshape((20, 240))
+    csp = csp.T
     csp = csp.astype(np.float32)
-    ID = np.zeros((20, 10), dtype=np.float32)
+    ID = np.zeros((2, 200), dtype=np.float32)
+    f0 = (f0/400.0).astype(np.float32)
 
-    return csp, ID
+    return csp, f0, ID
 
 
 class Audio(data.Dataset):
@@ -30,14 +31,14 @@ class Audio(data.Dataset):
 
     def __getitem__(self, index):
         path = self.image_list[index]
-        audio, ID = default_loader(path) 
+        audio, f0, ID = default_loader(path) 
         
         if '4_' in path:
-            ID[:,0] = 1
+            ID[0, :] = 1
         else:
-            ID[:,1] = 1
+            ID[1, :] = 1
 
-        return audio, ID
+        return audio, f0, ID
 
     def __len__(self):
 
