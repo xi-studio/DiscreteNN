@@ -42,7 +42,7 @@ test_loader = DataLoader(Audio('test'),batch_size=args.batch_size, shuffle=True,
 
 
 model = VAE().to(device)
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
 print('# parameters:', sum(param.numel() for param in model.parameters()) /1000000.0 * 4)
 
@@ -64,14 +64,16 @@ def train(epoch):
     for batch_idx, (data, f0, c) in enumerate(train_loader):
         x = data.to(device)
         c = c.to(device)
+        f0 = f0.to(device)
 
         t = torch.arange(100)
         t = t.type(torch.FloatTensor)
         t = t.to(device)
 
         optimizer.zero_grad()
+        z = torch.cat((f0, c), dim=1)
        
-        rx = model(x, c, t)
+        rx = model(x, z, t)
         loss = loss_function(rx, x)
         loss.backward()
         train_loss += loss.item()
@@ -85,7 +87,7 @@ def train(epoch):
                 ))
 
     if epoch % 20 == 0:
-        torch.save(model.state_dict(),"/data/tree/voice/csp_%03d.pt" % epoch)
+        torch.save(model.state_dict(),"/data/tree/voice/csp_wav_%03d.pt" % epoch)
     
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
@@ -99,22 +101,25 @@ def test(epoch):
         for i, (data, f0, c) in enumerate(test_loader):
             x = data.to(device)
             c = c.to(device)
+            f0 = f0.to(device)
 
             t = torch.arange(100)
             t = t.type(torch.FloatTensor)
             t = t.to(device)
+            z = torch.cat((f0, c), dim=1)
 
-            rx = model(x, c, t)
+            rx = model(x, z, t)
             loss = loss_function(rx, x)
             test_loss += loss.item()
 
             img_rx = rx.unsqueeze(1)
             img_x = x.unsqueeze(1)
-            img = torch.cat((img_rx, img_x), dim=0)
+            img = torch.cat((img_rx, img_x), dim=1)
+            img = img.view(-1, 1, 24 * 2, 200)
 
             if i == 0:
                  save_image(img.cpu(),
-                         'images/csp_conv_%03d.png' % epoch, nrow=1)
+                         'images/csp_wav_%03d.png' % epoch, nrow=4)
                 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f} '.format(test_loss))

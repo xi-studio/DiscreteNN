@@ -20,6 +20,7 @@ def default_loader(path):
     csp = csp.astype(np.float32)
     ID = np.zeros((2, 200), dtype=np.float32)
     f0 = (f0/400.0).astype(np.float32)
+    f0 = f0.reshape((1, 200))
 
     return csp, f0, ID
 
@@ -74,3 +75,9 @@ def pitch_conversion(f0, mean_log_src, std_log_src, mean_log_target, std_log_tar
     f0_converted = np.exp((np.log(f0) - mean_log_src) / std_log_src * std_log_target + mean_log_target)
 
     return f0_converted
+
+def decode_csp(coded_sp, fs):
+    fftlen = pw.get_cheaptrick_fft_size(fs)
+    decoded_sp = pw.decode_spectral_envelope(coded_sp, fs, fftlen)
+
+    return decoded_sp

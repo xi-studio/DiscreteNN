@@ -16,7 +16,7 @@ class BasicBlock_0(nn.Module):
             nn.Conv1d(c, c, 3, 1, 1),
             nn.Sigmoid(),
         )
-
+        
         self.end = nn.Conv1d(c, c, 1)
 
 
@@ -93,7 +93,7 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.start = nn.Conv1d(24, 256, 1)
         self.conv1 = BasicBlock_3(256)
-        self.conv2 = nn.Conv1d(256, 50, 1)
+        self.conv2 = nn.Conv1d(256, 20, 1)
 
     def forward(self, x):
         x = self.start(x)
@@ -106,7 +106,7 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
-        self.start = nn.Conv1d(50, 256, 1)
+        self.start = nn.Conv1d(100, 256, 1)
         self.conv1 = BasicBlock_3(256)
         self.conv2 = nn.Conv1d(256, 24, 1)
 
@@ -120,13 +120,15 @@ class Decoder(nn.Module):
 class Key(nn.Module):
     def __init__(self):
         super(Key, self).__init__()
-
-        self.fc1 = nn.Linear(10, 100)
-        self.fc2 = nn.Linear(100, 100)
+        self.start = nn.Conv1d(3, 256, 1)
+        self.conv1 = BasicBlock_3(256)
+        self.conv2 = nn.Conv1d(256, 20, 1)
 
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        w = torch.sigmoid(self.fc2(x))
+        x = self.start(x)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        w = torch.sigmoid(x)
 
         return w 
 
@@ -134,30 +136,29 @@ class VAE(nn.Module):
     def __init__(self):
         super(VAE, self).__init__()
         
-        self.amplitude = Key()
+        self.w = Key()
         self.en = Encoder()
         self.de = Decoder()
+       
 
-    def forward(self, x, c, t):
-        x = self.en(x)
-        x = self.de(x)
-#        N = x.shape[0]
-#        w = self.amplitude(c)
-#        phase = self.en(x)
-#        
-#        w = w.view(N, 100, 1)
-#        phase = phase.view(N, 100, 1)
-#       
-#        w = w.repeat(1, 1, 100)
-#        phase = phase.repeat(1, 1, 100)
-#
-#        x = torch.sin(2 * np.pi * w * t  + np.pi * phase )
-#        x = x.sum(dim=1)
-#        x = x.view(N, 100)         
-#        noise = torch.randn_like(x)
-#        x = noise + x
-#        
-#        x = self.de(x)
-#        x = x.view(-1, 256, 400)
+    def forward(self, x, z, t):
+        w = self.w(z)
+        phase = self.en(x)
+
+        phase = phase.unsqueeze(2)
+        phase = phase.repeat(1, 1, 100, 1)
+
+        w = w.unsqueeze(2)
+        w = w.repeat(1, 1, 100, 1)
+        w = w.transpose(2, 3).contiguous()
+        w = w * t
+        w = w.transpose(2, 3).contiguous()
+
+        wav = torch.sin(2 * np.pi * w + np.pi * phase)
+        wav = wav.sum(dim=1)
+        noise = torch.randn_like(wav) * 10
+        wav = noise + wav
+        
+        x = self.de(wav)
 
         return x 
