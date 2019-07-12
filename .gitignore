@@ -120,7 +120,11 @@ tree/checkpoints/
 tree/data/
 tree/images/
 tree/results/
-wav/checkpoints/
+*/checkpoints/
+*/data/
+*/images/
+*/results/
+*/checkpoints/
 wav/data/
 wav/images/
 wav/results/
