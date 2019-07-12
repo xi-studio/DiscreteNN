@@ -120,7 +120,7 @@ class Decoder(nn.Module):
 class Key(nn.Module):
     def __init__(self):
         super(Key, self).__init__()
-        self.start = nn.Conv1d(3, 256, 1)
+        self.start = nn.Conv1d(2, 256, 1)
         self.conv1 = BasicBlock_3(256)
         self.conv2 = nn.Conv1d(256, 20, 1)
 
@@ -156,7 +156,7 @@ class VAE(nn.Module):
 
         wav = torch.sin(2 * np.pi * w + np.pi * phase)
         wav = wav.sum(dim=1)
-        noise = torch.randn_like(wav) * 10
+        noise = torch.randn_like(wav) 
         wav = noise + wav
         
         x = self.de(wav)

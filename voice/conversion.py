@@ -38,11 +38,11 @@ device = torch.device("cuda" if args.cuda else "cpu")
 kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}
 
 train_loader = DataLoader(Audio('train'),batch_size=args.batch_size, shuffle=True, num_workers=4)
-test_loader = DataLoader(Audio('test'),batch_size=args.batch_size, shuffle=True, num_workers=4)
+test_loader = DataLoader(Audio('test'),batch_size=args.batch_size, shuffle=False, num_workers=4)
 
 
 model = VAE().to(device)
-optimizer = optim.Adam(model.parameters(), lr=1e-4)
+optimizer = optim.Adam(model.parameters(), lr=1e-5)
 
 print('# parameters:', sum(param.numel() for param in model.parameters()) /1000000.0 * 4)
 
@@ -71,9 +71,9 @@ def train(epoch):
         t = t.to(device)
 
         optimizer.zero_grad()
-        z = torch.cat((f0, c), dim=1)
+        #z = torch.cat((f0, c), dim=1)
        
-        rx = model(x, z, t)
+        rx = model(x, c, t)
         loss = loss_function(rx, x)
         loss.backward()
         train_loss += loss.item()
@@ -103,23 +103,32 @@ def test(epoch):
             c = c.to(device)
             f0 = f0.to(device)
 
+            c1 = torch.zeros_like(c)
+            c2 = torch.zeros_like(c)
+            c1[:,0] = 1
+            c2[:,1] = 1
+
             t = torch.arange(100)
             t = t.type(torch.FloatTensor)
             t = t.to(device)
-            z = torch.cat((f0, c), dim=1)
+            #z = torch.cat((f0, c), dim=1)
 
-            rx = model(x, z, t)
+            rx = model(x, c, t)
             loss = loss_function(rx, x)
             test_loss += loss.item()
 
-            img_rx = rx.unsqueeze(1)
-            img_x = x.unsqueeze(1)
-            img = torch.cat((img_rx, img_x), dim=1)
-            img = img.view(-1, 1, 24 * 2, 200)
+            #img_rx = rx.unsqueeze(1)
+            #img_x = x.unsqueeze(1)
+            #img = torch.cat((img_rx, img_x), dim=1)
+            #img = img.view(-1, 1, 24 * 2, 200)
 
             if i == 0:
-                 save_image(img.cpu(),
-                         'images/csp_wav_%03d.png' % epoch, nrow=4)
+                rx1 = model(x, c1, t)
+                rx2 = model(x, c2, t)
+                img = torch.cat((x, rx, rx1, rx2), dim=1)
+                img = img.view(-1, 1, 24 * 4, 200)
+                save_image(img.cpu(),
+                         'images/csp_test_%03d.png' % epoch, nrow=4)
                 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f} '.format(test_loss))

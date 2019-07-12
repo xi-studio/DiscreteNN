@@ -11,7 +11,9 @@ import pyworld as pw
 
 def default_loader(path):
     x, fs = librosa.load(path, sr=16000, dtype=np.float64)
-    idx = np.random.randint(0, x.shape[0] - 16000)
+    idx = 12000
+    if 'train' in path:
+        idx = np.random.randint(0, x.shape[0] - 16000)
     img = x[idx: idx + 16000 - 64]
     f0, sp, ap= pw.wav2world(img, fs)
     csp = pw.code_spectral_envelope(sp, fs, 24)
