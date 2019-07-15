@@ -10,21 +10,19 @@ import librosa
 import pyworld as pw
 
 def default_loader(path):
-    x, fs = librosa.load(path, sr=16000, dtype=np.float64)
+    x, fs = librosa.load(path, sr=16000)
     idx = 12000
     if 'train' in path:
-        idx = np.random.randint(0, x.shape[0] - 16000)
-    img = x[idx: idx + 16000 - 64]
-    f0, sp, ap= pw.wav2world(img, fs)
-    csp = pw.code_spectral_envelope(sp, fs, 24)
-   
-    csp = csp.T
-    csp = csp.astype(np.float32)
-    ID = np.zeros((2, 200), dtype=np.float32)
-    f0 = (f0/400.0).astype(np.float32)
-    f0 = f0.reshape((1, 200))
+        idx = np.random.randint(0, x.shape[0] - 16000 * 2 - 128)
+    y = x[idx: idx + 16000 * 2 - 128]
 
-    return csp, f0, ID
+    mel = librosa.feature.melspectrogram(y, sr=fs, n_fft=1024, hop_length=128) 
+
+    mel = np.log(mel)
+    mel = mel.astype(np.float32)
+    ID = np.zeros((2, mel.shape[1]), dtype=np.float32)
+
+    return mel, ID 
 
 
 class Audio(data.Dataset):
@@ -34,14 +32,14 @@ class Audio(data.Dataset):
 
     def __getitem__(self, index):
         path = self.image_list[index]
-        audio, f0, ID = default_loader(path) 
+        mel, ID = default_loader(path) 
         
         if '4_' in path:
             ID[0, :] = 1
         else:
             ID[1, :] = 1
 
-        return audio, f0, ID
+        return mel, ID 
 
     def __len__(self):
 

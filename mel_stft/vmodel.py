@@ -91,7 +91,7 @@ class BasicBlock_3(nn.Module):
 class Encoder(nn.Module):
     def __init__(self):
         super(Encoder, self).__init__()
-        self.start = nn.Conv1d(24, 256, 1)
+        self.start = nn.Conv1d(128, 256, 1)
         self.conv1 = BasicBlock_3(256)
         self.conv2 = nn.Conv1d(256, 20, 1)
 
@@ -108,7 +108,7 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         self.start = nn.Conv1d(100, 256, 1)
         self.conv1 = BasicBlock_3(256)
-        self.conv2 = nn.Conv1d(256, 24, 1)
+        self.conv2 = nn.Conv1d(256, 128, 1)
 
     def forward(self, x):
         x = self.start(x)
@@ -145,13 +145,16 @@ class VAE(nn.Module):
         w = self.w(z)
         phase = self.en(x)
 
+
         phase = phase.unsqueeze(2)
         phase = phase.repeat(1, 1, 100, 1)
 
         w = w.unsqueeze(2)
         w = w.repeat(1, 1, 100, 1)
         w = w.transpose(2, 3).contiguous()
+    
         w = w * t
+      
         w = w.transpose(2, 3).contiguous()
 
         wav = torch.sin(2 * np.pi * w + np.pi * phase)

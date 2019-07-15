@@ -50,28 +50,24 @@ print('# parameters:', sum(param.numel() for param in model.parameters()) /10000
 loss_function = nn.MSELoss()
 
 
-def savefig(path, mel, mel1, mel2):
-    plt.figure(figsize=(10, 5))
-    plt.plot(mel)
-    plt.plot(mel1)
-    plt.plot(mel2)
+def savefig(path, mel):
+    plt.figure(figsize=(4, 8))
+    plt.imshow(mel)
     plt.savefig(path, format="png")
     plt.close()
 
 def train(epoch):
     model.train()
     train_loss = 0
-    for batch_idx, (data, f0, c) in enumerate(train_loader):
+    for batch_idx, (data, c) in enumerate(train_loader):
         x = data.to(device)
         c = c.to(device)
-        f0 = f0.to(device)
 
         t = torch.arange(100)
         t = t.type(torch.FloatTensor)
         t = t.to(device)
 
         optimizer.zero_grad()
-        #z = torch.cat((f0, c), dim=1)
        
         rx = model(x, c, t)
         loss = loss_function(rx, x)
@@ -87,7 +83,7 @@ def train(epoch):
                 ))
 
     if epoch % 20 == 0:
-        torch.save(model.state_dict(),"/data/tree/voice/csp_wav_%03d.pt" % epoch)
+        torch.save(model.state_dict(),"/data/tree/voice/mel_%03d.pt" % epoch)
     
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
@@ -98,10 +94,9 @@ def test(epoch):
     model.eval()
     test_loss = 0
     with torch.no_grad():
-        for i, (data, f0, c) in enumerate(test_loader):
+        for i, (data, c) in enumerate(test_loader):
             x = data.to(device)
             c = c.to(device)
-            f0 = f0.to(device)
 
             c1 = torch.zeros_like(c)
             c2 = torch.zeros_like(c)
@@ -111,24 +106,16 @@ def test(epoch):
             t = torch.arange(100)
             t = t.type(torch.FloatTensor)
             t = t.to(device)
-            #z = torch.cat((f0, c), dim=1)
 
             rx = model(x, c, t)
             loss = loss_function(rx, x)
             test_loss += loss.item()
 
-            #img_rx = rx.unsqueeze(1)
-            #img_x = x.unsqueeze(1)
-            #img = torch.cat((img_rx, img_x), dim=1)
-            #img = img.view(-1, 1, 24 * 2, 200)
-
             if i == 0:
                 rx1 = model(x, c1, t)
                 rx2 = model(x, c2, t)
                 img = torch.cat((x, rx, rx1, rx2), dim=1)
-                img = img.view(-1, 1, 24 * 4, 200)
-                save_image(img.cpu(),
-                         'images/csp_test_%03d.png' % epoch, nrow=4)
+                savefig('images/mel_02_%03d.png' % epoch, img.cpu().numpy()[0])
                 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f} '.format(test_loss))
