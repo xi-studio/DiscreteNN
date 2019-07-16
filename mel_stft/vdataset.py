@@ -13,8 +13,8 @@ def default_loader(path):
     x, fs = librosa.load(path, sr=16000)
     idx = 12000
     if 'train' in path:
-        idx = np.random.randint(0, x.shape[0] - 16000 * 2 - 128)
-    y = x[idx: idx + 16000 * 2 - 128]
+        idx = np.random.randint(0, x.shape[0] - 16000 * 2 - 128 * 3)
+    y = x[idx: idx + 16000 * 2 - 128 * 3]
 
     mel = librosa.feature.melspectrogram(y, sr=fs, n_fft=1024, hop_length=128) 
 
