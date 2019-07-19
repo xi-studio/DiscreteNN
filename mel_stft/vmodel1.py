@@ -92,12 +92,20 @@ class Encoder(nn.Module):
     def __init__(self):
         super(Encoder, self).__init__()
         self.start = nn.Conv1d(128, 256, 1)
-        self.conv1 = BasicBlock_3(256)
-        self.end   = nn.Conv1d(256, 20, 1)
+        self.conv1 = BasicBlock_2(256)
+        self.conv2 = BasicBlock_2(256)
+        self.conv3 = BasicBlock_3(512)
+        self.end   = nn.Conv1d(512, 20, 1)
+        self.down1 = nn.Conv1d(256, 256, 4, 2, 1)
+        self.down2 = nn.Conv1d(256, 512, 4, 2, 1)
 
     def forward(self, x):
         x = self.start(x)
         x = self.conv1(x)
+        x = self.down1(x)
+        x = self.conv2(x)
+        x = self.down2(x)
+        x = self.conv3(x)
         x = self.end(x)
         phase = torch.sigmoid(x)
 
@@ -106,13 +114,21 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     def __init__(self):
         super(Decoder, self).__init__()
-        self.start = nn.Conv1d(100, 256, 1)
-        self.conv1 = BasicBlock_3(256)
+        self.start = nn.Conv1d(100, 1024, 1)
+        self.conv1 = BasicBlock_2(1024)
+        self.conv2 = BasicBlock_2(512)
+        self.conv3 = BasicBlock_2(256)
         self.end   = nn.Conv1d(256, 128, 1)
+        self.up1   = nn.ConvTranspose1d(1024, 512, 4, 2, 1)
+        self.up2   = nn.ConvTranspose1d(512, 256, 4, 2, 1)
 
     def forward(self, x):
         x = self.start(x)
         x = self.conv1(x)
+        x = self.up1(x)
+        x = self.conv2(x)
+        x = self.up2(x)
+        x = self.conv3(x)
         x = self.end(x)
 
         return x 
@@ -120,15 +136,22 @@ class Decoder(nn.Module):
 class Key(nn.Module):
     def __init__(self):
         super(Key, self).__init__()
-        self.main = nn.Sequential(
-            nn.Linear(2, 256),
-            nn.Linear(256, 256),
-            nn.Linear(256, 256),
-            nn.Linear(256, 20),
-        )
-            
+        self.start = nn.Conv1d(2, 256, 1)
+        self.conv1 = BasicBlock_2(256)
+        self.conv2 = BasicBlock_2(256)
+        self.conv3 = BasicBlock_3(256)
+        self.end   = nn.Conv1d(256, 20, 1)
+        self.down1 = nn.Conv1d(256, 256, 4, 2, 1)
+        self.down2 = nn.Conv1d(256, 256, 4, 2, 1)
+
     def forward(self, x):
-        x = self.main(x)
+        x = self.start(x)
+        x = self.conv1(x)
+        x = self.down1(x)
+        x = self.conv2(x)
+        x = self.down2(x)
+        x = self.conv3(x)
+        x = self.end(x)
         w = torch.sigmoid(x)
 
         return w 
@@ -145,15 +168,15 @@ class VAE(nn.Module):
     def forward(self, x, z, t):
         w = self.w(z)
         phase = self.en(x)
-       
-        L = phase.shape[2]
-        N = phase.shape[0]
+
 
         phase = phase.unsqueeze(2)
         phase = phase.repeat(1, 1, 100, 1)
 
-        w = w.view(N, 20, 1, 1)
-        w = w.repeat(1, 1, L, 100)
+        w = w.unsqueeze(2)
+        w = w.repeat(1, 1, 100, 1)
+        w = w.transpose(2, 3).contiguous()
+    
         w = w * t
       
         w = w.transpose(2, 3).contiguous()

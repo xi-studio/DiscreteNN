@@ -44,7 +44,7 @@ test_loader = DataLoader(Audio('test'),batch_size=args.batch_size, shuffle=True,
 
 
 model = VAE()
-model.load_state_dict(torch.load('/data/tree/voice/mel_400.pt'))
+model.load_state_dict(torch.load('/data/tree/voice/mel_f_880.pt'))
 model = model.to(device)
 print('# parameters:', sum(param.numel() for param in model.parameters()) /1000000.0 * 4)
 
@@ -60,9 +60,7 @@ def savefig(path, mel):
 
 def load_audio(path):
     x, fs = librosa.load(path, sr=16000) 
-
     mel = librosa.feature.melspectrogram(x, sr=fs, n_fft=1024, hop_length=128) 
-    
     mel = np.log(mel)
     mel = mel.astype(np.float32)
 
@@ -79,12 +77,12 @@ def rec_audio(mel):
 def gen():
     model.eval()
     with torch.no_grad():
-        path = '/data/tree/qinghua/train/A4_240.wav'
+        path = '/data/tree/qinghua/train/A8_240.wav'
         mel, y = load_audio(path)
         L = mel.shape[1]
 
-        c_4 = np.zeros((1, 2, L), dtype=np.float32)
-        c_8 = np.zeros((1, 2, L), dtype=np.float32)
+        c_4 = np.zeros((1, 2), dtype=np.float32)
+        c_8 = np.zeros((1, 2), dtype=np.float32)
 
         c_4[:,0] = 1
         c_8[:,1] = 1
@@ -106,22 +104,21 @@ def gen():
         rx_4 = model(x, c_4, t)
         rx_8 = model(x, c_8, t)
         
-        print(rx_4.shape, rx_8.shape)
+        print(x.shape, rx_4.shape, rx_8.shape)
 
         img = torch.cat((x, rx_4, rx_8), dim=1)
 
-        savefig('images/generate_mix.png', img.cpu().numpy()[0])
+        savefig('images/generate_re_mix.png', img.cpu().numpy()[0])
 
         y1 = rec_audio(mel)
         y2 = rec_audio(rx_4.cpu().numpy()[0])
         y3 = rec_audio(rx_8.cpu().numpy()[0])
         
         fs = 16000
-        librosa.output.write_wav('images/mix_4_A_240_org.wav', y, sr=fs)
-        librosa.output.write_wav('images/mix_4_A_240_grm_4.wav', y1, sr=fs)
-        librosa.output.write_wav('images/mix_4_A_240_rx_4.wav', y2, sr=fs)
-        librosa.output.write_wav('images/mix_4_A_240_rx_8.wav', y3, sr=fs)
- #       librosa.output.write_wav('images/mix_4_A_240_rx_8_1.wav', y8_1, sr=fs)
+        librosa.output.write_wav('images/mix_a_8_A_240_org.wav', y, sr=fs)
+        librosa.output.write_wav('images/mix_a_8_A_240_grm_4.wav', y1, sr=fs)
+        librosa.output.write_wav('images/mix_a_8_A_240_rx_4.wav', y2, sr=fs)
+        librosa.output.write_wav('images/mix_a_8_A_240_rx_8.wav', y3, sr=fs)
 
 if __name__ == "__main__":
     gen()

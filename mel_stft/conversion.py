@@ -83,7 +83,7 @@ def train(epoch):
                 ))
 
     if epoch % 20 == 0:
-        torch.save(model.state_dict(),"/data/tree/voice/mel_down_%03d.pt" % epoch)
+        torch.save(model.state_dict(),"/data/tree/voice/mel_f_%03d.pt" % epoch)
     
 
     print('====> Epoch: {} Average loss: {:.4f}'.format(
@@ -115,7 +115,7 @@ def test(epoch):
                 rx1 = model(x, c1, t)
                 rx2 = model(x, c2, t)
                 img = torch.cat((x, rx, rx1, rx2), dim=1)
-                savefig('images/mel_down_%03d.png' % epoch, img.cpu().numpy()[0])
+                savefig('images/mel_f_%03d.png' % epoch, img.cpu().numpy()[0])
                 
     test_loss /= len(test_loader.dataset)
     print('====> Test set loss: {:.4f} '.format(test_loss))

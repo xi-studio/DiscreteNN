@@ -13,14 +13,13 @@ def default_loader(path):
     x, fs = librosa.load(path, sr=16000)
     idx = 12000
     if 'train' in path:
-        idx = np.random.randint(0, x.shape[0] - 16000 * 2 - 128 * 3)
-    y = x[idx: idx + 16000 * 2 - 128 * 3]
+        idx = np.random.randint(0, x.shape[0] - 16000 * 2 - 128)
 
+    y = x[idx: idx + 16000 * 2 - 128]
     mel = librosa.feature.melspectrogram(y, sr=fs, n_fft=1024, hop_length=128) 
-
     mel = np.log(mel)
     mel = mel.astype(np.float32)
-    ID = np.zeros((2, mel.shape[1]), dtype=np.float32)
+    ID = np.zeros(2, dtype=np.float32)
 
     return mel, ID 
 
@@ -35,9 +34,9 @@ class Audio(data.Dataset):
         mel, ID = default_loader(path) 
         
         if '4_' in path:
-            ID[0, :] = 1
+            ID[0] = 1
         else:
-            ID[1, :] = 1
+            ID[1] = 1
 
         return mel, ID 
 
