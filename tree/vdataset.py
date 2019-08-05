@@ -1,4 +1,5 @@
 import glob
+import h5py
 import torch
 import numpy as np
 import torch.utils.data as data
@@ -10,12 +11,19 @@ import librosa
 import pyworld as pw
 
 img_data, target = torch.load('./data/train.pt')
+img_data = img_data.type(torch.FloatTensor)
+img_data = img_data / 256.0
 
-randx = torch.randn(60000, 10, 100, 100)
+def loadfile(path):
+    f = h5py.File(path,'r')
+    x = f['randx'][:]
+    f.close()
+    return x
 
 def default_loader(idx):
     img = img_data[idx]
-    x = randx[idx]
+    path = '/data/tree/mnist/%d.h5' % idx
+    x = loadfile(path)
 
     return x, img 
 
